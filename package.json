@@ -2,15 +2,11 @@
   "name": "n8n-nodes-signal",
   "version": "0.2.0",
   "description": "Signal Node for n8n",
-  "keywords": [
-    "n8n-community",
-    "signal",
-    "messaging"
-  ],
+  "keywords": ["n8n-community", "signal", "messaging"],
   "license": "MIT",
   "main": "index.js",
   "scripts": {
-    "build": "tsc && copy nodes\\Signal\\signal.svg dist\\nodes\\Signal\\signal.svg",
+    "build": "tsc && copy nodes\\Signal\\signal.svg dist\\nodes\\Signal\\signal.svg && copy credentials\\signal.svg dist\\credentials\\signal.svg",
     "dev": "tsc --watch"
   },
   "n8n": {
@@ -19,20 +15,18 @@
       "./dist/nodes/Signal/Signal.node.js",
       "./dist/nodes/Signal/SignalTrigger.node.js"
     ],
-    "credentials": [
-      "./dist/credentials/SignalApi.credentials.js"
-    ]
+    "credentials": ["./dist/credentials/SignalApi.credentials.js"]
   },
   "dependencies": {
-    "@types/node": "20.12.12",
     "axios": "1.7.2",
     "n8n-core": "1.110.0",
     "n8n-workflow": "1.108.0",
+    "@types/node": "20.12.12",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.12",
+    "typescript": "5.4.5",
     "ts-node": "10.9.2",
-    "typescript": "5.4.5"
+    "@types/ws": "^8.5.12"
   }
 }

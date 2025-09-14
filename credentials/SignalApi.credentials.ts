@@ -1,9 +1,10 @@
-import { ICredentialType, INodeProperties, ICredentialTestRequest } from 'n8n-workflow';
+import { ICredentialType, INodeProperties, ICredentialTestRequest, Icon } from 'n8n-workflow';
 import axios from 'axios';
 
 export class SignalApi implements ICredentialType {
     name = 'signalApi';
     displayName = 'Signal API';
+    icon = 'file:signal.svg' as Icon;
     documentationUrl = 'https://github.com/bbernhard/signal-cli-rest-api';
     properties: INodeProperties[] = [
         {
