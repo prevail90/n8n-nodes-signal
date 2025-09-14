@@ -6,10 +6,9 @@ import {
     NodeConnectionType,
     NodeApiError,
 } from 'n8n-workflow';
-import { AxiosError } from 'axios';
+import { AxiosError, AxiosRequestConfig } from 'axios';
 import axios from 'axios';
 
-// Інтерфейс для відповіді API, щоб обробляти помилки
 interface SignalApiErrorResponse {
     error?: string;
 }
@@ -18,7 +17,7 @@ export class Signal implements INodeType {
     description: INodeTypeDescription = {
         displayName: 'Signal',
         name: 'signal',
-        icon: 'file:signal.svg', // Потрібно створити іконку
+        icon: 'file:signal.svg',
         group: ['output'],
         version: 1,
         description: 'Interact with Signal via signal-cli-rest-api',
@@ -46,6 +45,18 @@ export class Signal implements INodeType {
                         value: 'sendMessage',
                         description: 'Send a message to a contact or group',
                         action: 'Send a message',
+                    },
+                    {
+                        name: 'Get Contacts',
+                        value: 'getContacts',
+                        description: 'Get the list of contacts for the account',
+                        action: 'Get contacts',
+                    },
+                    {
+                        name: 'Get Groups',
+                        value: 'getGroups',
+                        description: 'Get the list of groups for the account',
+                        action: 'Get groups',
                     },
                 ],
             },
@@ -76,6 +87,23 @@ export class Signal implements INodeType {
                     },
                 },
             },
+            {
+                displayName: 'Timeout (seconds)',
+                name: 'timeout',
+                type: 'number',
+                default: 60,
+                description: 'Request timeout in seconds (set higher for Get Groups, e.g., 300)',
+                displayOptions: {
+                    show: {
+                        operation: ['sendMessage', 'getContacts', 'getGroups'],
+                    },
+                },
+                typeOptions: {
+                    minValue: 1,
+                    maxValue: 600,
+                },
+                hint: 'Increase for slow operations like Get Groups (recommended: 300 for Get Groups)',
+            },
         ],
     };
 
@@ -90,37 +118,76 @@ export class Signal implements INodeType {
         const phoneNumber = credentials.phoneNumber as string;
 
         for (let i = 0; i < items.length; i++) {
-            if (operation === 'sendMessage') {
-                const recipient = this.getNodeParameter('recipient', i) as string;
-                const message = this.getNodeParameter('message', i) as string;
+            // Отримуємо таймаут із параметрів (у секундах, конвертуємо в мс)
+            const timeout = (this.getNodeParameter('timeout', i, operation === 'getGroups' ? 300 : 60) as number) * 1000;
 
-                try {
-                    const response = await axios.post(
-                        `${apiUrl}/v1/send`,
-                        {
-                            message,
-                            number: phoneNumber,
-                            recipients: [recipient],
-                        },
-                        {
-                            headers: apiToken ? { Authorization: `Bearer ${apiToken}` } : {},
-                        }
+            // Налаштування axios з таймаутом
+            const axiosConfig: AxiosRequestConfig = {
+                headers: apiToken ? { Authorization: `Bearer ${apiToken}` } : {},
+                timeout,
+            };
+
+            // Retry-логіка
+            const retryRequest = async (request: () => Promise<any>, retries = 2, delay = 5000): Promise<any> => {
+                for (let attempt = 1; attempt <= retries; attempt++) {
+                    try {
+                        return await request();
+                    } catch (error) {
+                        if (attempt === retries) throw error;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                }
+            };
+
+            try {
+                if (operation === 'sendMessage') {
+                    const recipient = this.getNodeParameter('recipient', i) as string;
+                    const message = this.getNodeParameter('message', i) as string;
+
+                    const response = await retryRequest(() =>
+                        axios.post(
+                            `${apiUrl}/v1/send`,
+                            {
+                                message,
+                                number: phoneNumber,
+                                recipients: [recipient],
+                            },
+                            axiosConfig
+                        )
                     );
 
                     returnData.push({
                         json: response.data,
                         pairedItem: { item: i },
                     });
-                } catch (error) {
-                    const axiosError = error as AxiosError<SignalApiErrorResponse>;
-                    throw new NodeApiError(this.getNode(), {
-                        message: axiosError.message,
-                        description: (axiosError.response?.data?.error || axiosError.message) as string,
-                        httpCode: axiosError.response?.status?.toString() || 'unknown',
-                    }, {
-                        itemIndex: i,
+                } else if (operation === 'getContacts') {
+                    const response = await retryRequest(() =>
+                        axios.get(`${apiUrl}/v1/contacts/${phoneNumber}`, axiosConfig)
+                    );
+
+                    returnData.push({
+                        json: response.data,
+                        pairedItem: { item: i },
+                    });
+                } else if (operation === 'getGroups') {
+                    const response = await retryRequest(() =>
+                        axios.get(`${apiUrl}/v1/groups/${phoneNumber}`, axiosConfig)
+                    );
+
+                    returnData.push({
+                        json: response.data,
+                        pairedItem: { item: i },
                     });
                 }
+            } catch (error) {
+                const axiosError = error as AxiosError<SignalApiErrorResponse>;
+                throw new NodeApiError(this.getNode(), {
+                    message: axiosError.message,
+                    description: (axiosError.response?.data?.error || axiosError.message) as string,
+                    httpCode: axiosError.response?.status?.toString() || 'unknown',
+                }, {
+                    itemIndex: i,
+                });
             }
         }
 
