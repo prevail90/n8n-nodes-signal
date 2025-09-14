@@ -1,4 +1,5 @@
-import { ICredentialType, INodeProperties } from 'n8n-workflow';
+import { ICredentialType, INodeProperties, ICredentialTestRequest } from 'n8n-workflow';
+import axios from 'axios';
 
 export class SignalApi implements ICredentialType {
     name = 'signalApi';
@@ -32,4 +33,18 @@ export class SignalApi implements ICredentialType {
             required: true,
         },
     ];
+
+    test: ICredentialTestRequest = {
+        request: {
+            method: 'GET',
+            url: '={{$credentials.apiUrl}}/v1/about',
+            headers: {
+                // The Authorization header uses n8n expression syntax for runtime interpolation
+                ...(typeof '{{ $credentials.apiToken }}' === 'string' && '{{ $credentials.apiToken }}'
+                    ? { Authorization: 'Bearer {{ $credentials.apiToken }}' }
+                    : {}),
+            },
+            timeout: 5000,
+        }
+    }
 }
