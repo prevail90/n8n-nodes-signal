@@ -3,7 +3,6 @@ import {
     INodeExecutionData,
     INodeType,
     INodeTypeDescription,
-    NodeConnectionType,
     NodeApiError,
 } from 'n8n-workflow';
 import { AxiosError, AxiosRequestConfig } from 'axios';
@@ -24,8 +23,8 @@ export class Signal implements INodeType {
         defaults: {
             name: 'Signal',
         },
-        inputs: [NodeConnectionType.Main],
-        outputs: [NodeConnectionType.Main],
+        inputs: ['main'],
+        outputs: ['main'],
         credentials: [
             {
                 name: 'signalApi',
