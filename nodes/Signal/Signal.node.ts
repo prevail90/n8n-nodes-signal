@@ -37,13 +37,31 @@ export class Signal implements INodeType {
                 name: 'operation',
                 type: 'options',
                 noDataExpression: true,
-                default: 'sendMessage',
+                default: '',
                 options: [
                     {
                         name: 'Send Message',
                         value: 'sendMessage',
                         description: 'Send a text message to a contact or group',
                         action: 'Send a text message',
+                    },
+                    {
+                        name: 'Send Attachment',
+                        value: 'sendAttachment',
+                        description: 'Send a file or image to a contact or group',
+                        action: 'Send an attachment',
+                    },
+                    {
+                        name: 'Send Reaction',
+                        value: 'sendReaction',
+                        description: 'Send a reaction (emoji) to a message',
+                        action: 'Send a reaction',
+                    },
+                    {
+                        name: 'Remove Reaction',
+                        value: 'removeReaction',
+                        description: 'Remove a reaction from a message',
+                        action: 'Remove a reaction',
                     },
                     {
                         name: 'Get Contacts',
@@ -58,22 +76,10 @@ export class Signal implements INodeType {
                         action: 'Get groups',
                     },
                     {
-                        name: 'Send Attachment',
-                        value: 'sendAttachment',
-                        description: 'Send a file or image to a contact or group',
-                        action: 'Send an attachment',
-                    },
-                    {
                         name: 'Create Group',
                         value: 'createGroup',
                         description: 'Create a new Signal group',
                         action: 'Create a group',
-                    },
-                    {
-                        name: 'Send Reaction',
-                        value: 'sendReaction',
-                        description: 'Send a reaction (emoji) to a message',
-                        action: 'Send a reaction',
                     },
                 ],
             },
@@ -87,7 +93,7 @@ export class Signal implements INodeType {
                 required: true,
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment', 'sendReaction'],
+                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction'],
                     },
                 },
             },
@@ -194,7 +200,7 @@ export class Signal implements INodeType {
                     {
                         name: 'Handshake',
                         value: '🤝',
-                    }
+                    },
                 ],
                 displayOptions: {
                     show: {
@@ -212,7 +218,7 @@ export class Signal implements INodeType {
                 required: true,
                 displayOptions: {
                     show: {
-                        operation: ['sendReaction'],
+                        operation: ['sendReaction', 'removeReaction'],
                     },
                 },
             },
@@ -225,7 +231,7 @@ export class Signal implements INodeType {
                 required: true,
                 displayOptions: {
                     show: {
-                        operation: ['sendReaction'],
+                        operation: ['sendReaction', 'removeReaction'],
                     },
                 },
             },
@@ -237,7 +243,7 @@ export class Signal implements INodeType {
                 description: 'Request timeout in seconds (set higher for Get Groups, e.g., 300)',
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'getContacts', 'getGroups', 'sendAttachment', 'createGroup', 'sendReaction'],
+                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'getContacts', 'getGroups', 'createGroup'],
                     },
                 },
                 typeOptions: {
@@ -380,6 +386,29 @@ export class Signal implements INodeType {
 
                     returnData.push({
                         json: response.data,
+                        pairedItem: { item: i },
+                    });
+                } else if (operation === 'removeReaction') {
+                    const recipient = this.getNodeParameter('recipient', i) as string;
+                    const targetAuthor = this.getNodeParameter('targetAuthor', i) as string;
+                    const targetSentTimestamp = this.getNodeParameter('targetSentTimestamp', i) as number;
+
+                    const response = await retryRequest(() =>
+                        axios.delete(
+                            `${apiUrl}/v1/reactions/${phoneNumber}`,
+                            {
+                                ...axiosConfig,
+                                data: {
+                                    recipient: recipient,
+                                    target_author: targetAuthor,
+                                    timestamp: targetSentTimestamp,
+                                },
+                            }
+                        )
+                    );
+
+                    returnData.push({
+                        json: response.data || { status: 'Reaction removed' },
                         pairedItem: { item: i },
                     });
                 }
