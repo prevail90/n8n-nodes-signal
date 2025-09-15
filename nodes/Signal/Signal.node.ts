@@ -83,7 +83,7 @@ export class Signal implements INodeType {
                 type: 'string',
                 default: '',
                 placeholder: '+1234567890 or groupId',
-                description: 'Phone number or group ID to send the message or attachment to',
+                description: 'Phone number or group ID to send the message, attachment, or reaction to',
                 required: true,
                 displayOptions: {
                     show: {
@@ -147,11 +147,55 @@ export class Signal implements INodeType {
             {
                 displayName: 'Emoji',
                 name: 'emoji',
-                type: 'string',
-                default: '',
-                placeholder: '👍',
-                description: 'Emoji to send as a reaction',
+                type: 'options',
+                default: '👍',
+                description: 'Emoji to send as a reaction (select or enter custom emoji)',
                 required: true,
+                typeOptions: {
+                    allowCustom: true,
+                },
+                options: [
+                    {
+                        name: 'Thumbs Up',
+                        value: '👍',
+                    },
+                    {
+                        name: 'Heart',
+                        value: '❤️',
+                    },
+                    {
+                        name: 'Smile',
+                        value: '😄',
+                    },
+                    {
+                        name: 'Sad',
+                        value: '😢',
+                    },
+                    {
+                        name: 'Angry',
+                        value: '😣',
+                    },
+                    {
+                        name: 'Star',
+                        value: '⭐',
+                    },
+                    {
+                        name: 'Fire',
+                        value: '🔥',
+                    },
+                    {
+                        name: 'Plus',
+                        value: '➕',
+                    },
+                    {
+                        name: 'Minus',
+                        value: '➖',
+                    },
+                    {
+                        name: 'Handshake',
+                        value: '🤝',
+                    }
+                ],
                 displayOptions: {
                     show: {
                         operation: ['sendReaction'],
