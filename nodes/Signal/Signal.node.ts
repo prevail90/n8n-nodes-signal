@@ -77,6 +77,12 @@ export class Signal implements INodeType {
                         description: 'Create a new Signal group',
                         action: 'Create a group',
                     },
+                    {
+                        name: 'Groups: Update Group',
+                        value: 'updateGroup',
+                        description: 'Update a Signal group’s name or members',
+                        action: 'Update a group',
+                    },
                 ],
             },
             {
@@ -120,15 +126,29 @@ export class Signal implements INodeType {
                 },
             },
             {
+                displayName: 'Group ID',
+                name: 'groupId',
+                type: 'string',
+                default: '',
+                placeholder: 'group.XXXXXXXXXXXXXXXXXXXXXXXXXX==',
+                description: 'ID of the group to update',
+                required: true,
+                displayOptions: {
+                    show: {
+                        operation: ['updateGroup'],
+                    },
+                },
+            },
+            {
                 displayName: 'Group Name',
                 name: 'groupName',
                 type: 'string',
                 default: '',
-                description: 'Name of the new group',
-                required: true,
+                description: 'Name of the new or updated group',
+                required: false,
                 displayOptions: {
                     show: {
-                        operation: ['createGroup'],
+                        operation: ['createGroup', 'updateGroup'],
                     },
                 },
             },
@@ -139,10 +159,10 @@ export class Signal implements INodeType {
                 default: '',
                 placeholder: '+1234567890,+0987654321',
                 description: 'Comma-separated list of phone numbers to add to the group',
-                required: true,
+                required: false,
                 displayOptions: {
                     show: {
-                        operation: ['createGroup'],
+                        operation: ['createGroup', 'updateGroup'],
                     },
                 },
             },
@@ -239,7 +259,7 @@ export class Signal implements INodeType {
                 description: 'Request timeout in seconds (set higher for Get Groups, e.g., 300)',
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'getContacts', 'getGroups', 'createGroup'],
+                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'getContacts', 'getGroups', 'createGroup', 'updateGroup'],
                     },
                 },
                 typeOptions: {
@@ -267,6 +287,7 @@ export class Signal implements INodeType {
                 recipient: this.getNodeParameter('recipient', i, '') as string,
                 message: this.getNodeParameter('message', i, '') as string,
                 attachmentUrl: this.getNodeParameter('attachmentUrl', i, '') as string,
+                groupId: this.getNodeParameter('groupId', i, '') as string,
                 groupName: this.getNodeParameter('groupName', i, '') as string,
                 groupMembers: this.getNodeParameter('groupMembers', i, '') as string,
                 emoji: this.getNodeParameter('emoji', i, '') as string,
@@ -282,7 +303,7 @@ export class Signal implements INodeType {
                 if (['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction'].includes(operation)) {
                     const result = await executeMessagesOperation.call(this, operation, i, params);
                     returnData.push(result);
-                } else if (['getGroups', 'createGroup'].includes(operation)) {
+                } else if (['getGroups', 'createGroup', 'updateGroup'].includes(operation)) {
                     const result = await executeGroupsOperation.call(this, operation, i, params);
                     returnData.push(result);
                 } else if (operation === 'getContacts') {

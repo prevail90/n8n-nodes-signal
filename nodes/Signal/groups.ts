@@ -9,6 +9,7 @@ interface SignalApiErrorResponse {
 interface OperationParams {
     groupName?: string;
     groupMembers?: string;
+    groupId?: string;
     timeout: number;
     apiUrl: string;
     apiToken: string;
@@ -21,7 +22,7 @@ export async function executeGroupsOperation(
     itemIndex: number,
     params: OperationParams,
 ): Promise<INodeExecutionData> {
-    const { groupName, groupMembers, timeout, apiUrl, apiToken, phoneNumber } = params;
+    const { groupName, groupMembers, groupId, timeout, apiUrl, apiToken, phoneNumber } = params;
 
     const axiosConfig: AxiosRequestConfig = {
         headers: apiToken ? { Authorization: `Bearer ${apiToken}` } : {},
@@ -54,6 +55,18 @@ export async function executeGroupsOperation(
                         name: groupName,
                         members,
                     },
+                    axiosConfig
+                )
+            );
+            return { json: response.data, pairedItem: { item: itemIndex } };
+        } else if (operation === 'updateGroup') {
+            const body: { name?: string; members?: string[] } = {};
+            if (groupName) body.name = groupName;
+            if (groupMembers) body.members = groupMembers.split(',').map(member => member.trim());
+            const response = await retryRequest(() =>
+                axios.put(
+                    `${apiUrl}/v1/groups/${phoneNumber}/${groupId}`,
+                    body,
                     axiosConfig
                 )
             );
