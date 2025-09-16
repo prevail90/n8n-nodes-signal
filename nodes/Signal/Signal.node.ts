@@ -3,14 +3,10 @@ import {
     INodeExecutionData,
     INodeType,
     INodeTypeDescription,
-    NodeApiError,
 } from 'n8n-workflow';
-import { AxiosError, AxiosRequestConfig } from 'axios';
-import axios from 'axios';
-
-interface SignalApiErrorResponse {
-    error?: string;
-}
+import { executeMessagesOperation } from './messages';
+import { executeGroupsOperation } from './groups';
+import { executeContactsOperation } from './contacts';
 
 export class Signal implements INodeType {
     description: INodeTypeDescription = {
@@ -40,43 +36,43 @@ export class Signal implements INodeType {
                 default: '',
                 options: [
                     {
-                        name: 'Send Message',
+                        name: 'Messages: Send Message',
                         value: 'sendMessage',
                         description: 'Send a text message to a contact or group',
                         action: 'Send a text message',
                     },
                     {
-                        name: 'Send Attachment',
+                        name: 'Messages: Send Attachment',
                         value: 'sendAttachment',
                         description: 'Send a file or image to a contact or group',
                         action: 'Send an attachment',
                     },
                     {
-                        name: 'Send Reaction',
+                        name: 'Messages: Send Reaction',
                         value: 'sendReaction',
                         description: 'Send a reaction (emoji) to a message',
                         action: 'Send a reaction',
                     },
                     {
-                        name: 'Remove Reaction',
+                        name: 'Messages: Remove Reaction',
                         value: 'removeReaction',
                         description: 'Remove a reaction from a message',
                         action: 'Remove a reaction',
                     },
                     {
-                        name: 'Get Contacts',
+                        name: 'Contacts: Get Contacts',
                         value: 'getContacts',
                         description: 'Get the list of contacts for the account',
                         action: 'Get contacts',
                     },
                     {
-                        name: 'Get Groups',
+                        name: 'Groups: Get Groups',
                         value: 'getGroups',
                         description: 'Get the list of groups for the account',
                         action: 'Get groups',
                     },
                     {
-                        name: 'Create Group',
+                        name: 'Groups: Create Group',
                         value: 'createGroup',
                         description: 'Create a new Signal group',
                         action: 'Create a group',
@@ -267,160 +263,34 @@ export class Signal implements INodeType {
 
         for (let i = 0; i < items.length; i++) {
             const timeout = (this.getNodeParameter('timeout', i, operation === 'getGroups' ? 300 : 60) as number) * 1000;
-            const axiosConfig: AxiosRequestConfig = {
-                headers: apiToken ? { Authorization: `Bearer ${apiToken}` } : {},
+            const params = {
+                recipient: this.getNodeParameter('recipient', i, '') as string,
+                message: this.getNodeParameter('message', i, '') as string,
+                attachmentUrl: this.getNodeParameter('attachmentUrl', i, '') as string,
+                groupName: this.getNodeParameter('groupName', i, '') as string,
+                groupMembers: this.getNodeParameter('groupMembers', i, '') as string,
+                emoji: this.getNodeParameter('emoji', i, '') as string,
+                targetAuthor: this.getNodeParameter('targetAuthor', i, '') as string,
+                targetSentTimestamp: this.getNodeParameter('targetSentTimestamp', i, 0) as number,
                 timeout,
-            };
-
-            const retryRequest = async (request: () => Promise<any>, retries = 2, delay = 5000): Promise<any> => {
-                for (let attempt = 1; attempt <= retries; attempt++) {
-                    try {
-                        return await request();
-                    } catch (error) {
-                        if (attempt === retries) throw error;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    }
-                }
+                apiUrl,
+                apiToken,
+                phoneNumber,
             };
 
             try {
-                if (operation === 'sendMessage') {
-                    const recipient = this.getNodeParameter('recipient', i) as string;
-                    const message = this.getNodeParameter('message', i) as string;
-
-                    const response = await retryRequest(() =>
-                        axios.post(
-                            `${apiUrl}/v1/send`,
-                            {
-                                message,
-                                number: phoneNumber,
-                                recipients: [recipient],
-                            },
-                            axiosConfig
-                        )
-                    );
-
-                    returnData.push({
-                        json: response.data,
-                        pairedItem: { item: i },
-                    });
+                if (['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction'].includes(operation)) {
+                    const result = await executeMessagesOperation.call(this, operation, i, params);
+                    returnData.push(result);
+                } else if (['getGroups', 'createGroup'].includes(operation)) {
+                    const result = await executeGroupsOperation.call(this, operation, i, params);
+                    returnData.push(result);
                 } else if (operation === 'getContacts') {
-                    const response = await retryRequest(() =>
-                        axios.get(`${apiUrl}/v1/contacts/${phoneNumber}`, axiosConfig)
-                    );
-
-                    returnData.push({
-                        json: response.data,
-                        pairedItem: { item: i },
-                    });
-                } else if (operation === 'getGroups') {
-                    const response = await retryRequest(() =>
-                        axios.get(`${apiUrl}/v1/groups/${phoneNumber}`, axiosConfig)
-                    );
-
-                    returnData.push({
-                        json: response.data,
-                        pairedItem: { item: i },
-                    });
-                } else if (operation === 'sendAttachment') {
-                    const recipient = this.getNodeParameter('recipient', i) as string;
-                    const message = this.getNodeParameter('message', i) as string;
-                    const attachmentUrl = this.getNodeParameter('attachmentUrl', i) as string;
-
-                    const response = await retryRequest(() =>
-                        axios.post(
-                            `${apiUrl}/v1/send`,
-                            {
-                                message,
-                                number: phoneNumber,
-                                recipients: [recipient],
-                                attachments: [attachmentUrl],
-                            },
-                            axiosConfig
-                        )
-                    );
-
-                    returnData.push({
-                        json: response.data,
-                        pairedItem: { item: i },
-                    });
-                } else if (operation === 'createGroup') {
-                    const groupName = this.getNodeParameter('groupName', i) as string;
-                    const groupMembers = (this.getNodeParameter('groupMembers', i) as string)
-                        .split(',')
-                        .map(member => member.trim());
-
-                    const response = await retryRequest(() =>
-                        axios.post(
-                            `${apiUrl}/v1/groups/${phoneNumber}`,
-                            {
-                                name: groupName,
-                                members: groupMembers,
-                            },
-                            axiosConfig
-                        )
-                    );
-
-                    returnData.push({
-                        json: response.data,
-                        pairedItem: { item: i },
-                    });
-                } else if (operation === 'sendReaction') {
-                    const recipient = this.getNodeParameter('recipient', i) as string;
-                    const emoji = this.getNodeParameter('emoji', i) as string;
-                    const targetAuthor = this.getNodeParameter('targetAuthor', i) as string;
-                    const targetSentTimestamp = this.getNodeParameter('targetSentTimestamp', i) as number;
-
-                    const response = await retryRequest(() =>
-                        axios.post(
-                            `${apiUrl}/v1/reactions/${phoneNumber}`,
-                            {
-                                reaction: emoji,
-                                recipient: recipient,
-                                target_author: targetAuthor,
-                                timestamp: targetSentTimestamp,
-                            },
-                            axiosConfig
-                        )
-                    );
-
-                    returnData.push({
-                        json: response.data,
-                        pairedItem: { item: i },
-                    });
-                } else if (operation === 'removeReaction') {
-                    const recipient = this.getNodeParameter('recipient', i) as string;
-                    const targetAuthor = this.getNodeParameter('targetAuthor', i) as string;
-                    const targetSentTimestamp = this.getNodeParameter('targetSentTimestamp', i) as number;
-
-                    const response = await retryRequest(() =>
-                        axios.delete(
-                            `${apiUrl}/v1/reactions/${phoneNumber}`,
-                            {
-                                ...axiosConfig,
-                                data: {
-                                    recipient: recipient,
-                                    target_author: targetAuthor,
-                                    timestamp: targetSentTimestamp,
-                                },
-                            }
-                        )
-                    );
-
-                    returnData.push({
-                        json: response.data || { status: 'Reaction removed' },
-                        pairedItem: { item: i },
-                    });
+                    const result = await executeContactsOperation.call(this, operation, i, params);
+                    returnData.push(result);
                 }
             } catch (error) {
-                const axiosError = error as AxiosError<SignalApiErrorResponse>;
-                throw new NodeApiError(this.getNode(), {
-                    message: axiosError.message,
-                    description: (axiosError.response?.data?.error || axiosError.message) as string,
-                    httpCode: axiosError.response?.status?.toString() || 'unknown',
-                }, {
-                    itemIndex: i,
-                });
+                throw error;
             }
         }
 
