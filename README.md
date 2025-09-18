@@ -1,8 +1,9 @@
 # n8n Signal Node
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/n8n-io/n8n/master/assets/n8n-logo.png" alt="n8n" width="80" height="80" />
-  <img src="https://signal.org/assets/images/header/signal-logo.png" alt="Signal" width="80" height="80" />
+  <img src="https://n8n.io/guidelines/logo-white.svg" alt="n8n" width="160" height="160" />
+	<br>
+  <img src="https://signal.org/assets/images/header/logo.png" alt="Signal" width="160" height="160" />
 </div>
 
 <div align="center">
