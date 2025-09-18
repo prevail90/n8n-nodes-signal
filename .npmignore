@@ -1,2 +1,12 @@
 .DS_Store
+.vscode
 *.tsbuildinfo
+node_modules/
+dist/
+*.ts
+*.tgz
+package-lock.json
+tsconfig.json
+gulpfile.js
+.git
+.gitignore
