@@ -2,6 +2,10 @@
   "name": "n8n-nodes-signal",
   "version": "0.2.0",
   "description": "Signal Node for n8n",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZBlaZe/n8n-nodes-signal.git"
+  },
   "keywords": ["n8n-community", "signal", "messaging"],
   "license": "MIT",
   "main": "index.js",
@@ -19,8 +23,8 @@
   },
   "dependencies": {
     "axios": "1.7.2",
-    "n8n-core": "1.110.0",
-    "n8n-workflow": "1.108.0",
+    "n8n-core": "1.111.0",
+    "n8n-workflow": "1.109.0",
     "@types/node": "20.12.12",
     "ws": "^8.18.0"
   },
