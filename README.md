@@ -109,7 +109,7 @@ services:
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/your-username/n8n-nodes-signal.git
+   git clone https://github.com/zblaze/n8n-nodes-signal.git
    cd n8n-nodes-signal
    ```
 
