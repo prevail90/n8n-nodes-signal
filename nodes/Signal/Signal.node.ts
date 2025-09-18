@@ -3,14 +3,10 @@ import {
     INodeExecutionData,
     INodeType,
     INodeTypeDescription,
-    NodeApiError,
 } from 'n8n-workflow';
-import { AxiosError, AxiosRequestConfig } from 'axios';
-import axios from 'axios';
-
-interface SignalApiErrorResponse {
-    error?: string;
-}
+import { executeMessagesOperation } from './messages';
+import { executeGroupsOperation } from './groups';
+import { executeContactsOperation } from './contacts';
 
 export class Signal implements INodeType {
     description: INodeTypeDescription = {
@@ -37,25 +33,55 @@ export class Signal implements INodeType {
                 name: 'operation',
                 type: 'options',
                 noDataExpression: true,
-                default: 'sendMessage',
+                default: '',
                 options: [
                     {
-                        name: 'Send Message',
+                        name: 'Messages: Send Message',
                         value: 'sendMessage',
-                        description: 'Send a message to a contact or group',
-                        action: 'Send a message',
+                        description: 'Send a text message to a contact or group',
+                        action: 'Send a text message',
                     },
                     {
-                        name: 'Get Contacts',
+                        name: 'Messages: Send Attachment',
+                        value: 'sendAttachment',
+                        description: 'Send a file or image to a contact or group',
+                        action: 'Send an attachment',
+                    },
+                    {
+                        name: 'Messages: Send Reaction',
+                        value: 'sendReaction',
+                        description: 'Send a reaction (emoji) to a message',
+                        action: 'Send a reaction',
+                    },
+                    {
+                        name: 'Messages: Remove Reaction',
+                        value: 'removeReaction',
+                        description: 'Remove a reaction from a message',
+                        action: 'Remove a reaction',
+                    },
+                    {
+                        name: 'Contacts: Get Contacts',
                         value: 'getContacts',
                         description: 'Get the list of contacts for the account',
                         action: 'Get contacts',
                     },
                     {
-                        name: 'Get Groups',
+                        name: 'Groups: Get Groups',
                         value: 'getGroups',
                         description: 'Get the list of groups for the account',
                         action: 'Get groups',
+                    },
+                    {
+                        name: 'Groups: Create Group',
+                        value: 'createGroup',
+                        description: 'Create a new Signal group',
+                        action: 'Create a group',
+                    },
+                    {
+                        name: 'Groups: Update Group',
+                        value: 'updateGroup',
+                        description: 'Update a Signal group’s name or members',
+                        action: 'Update a group',
                     },
                 ],
             },
@@ -65,11 +91,11 @@ export class Signal implements INodeType {
                 type: 'string',
                 default: '',
                 placeholder: '+1234567890 or groupId',
-                description: 'Phone number or group ID to send the message to',
+                description: 'Phone number or group ID to send the message, attachment, or reaction to',
                 required: true,
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage'],
+                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction'],
                     },
                 },
             },
@@ -78,11 +104,150 @@ export class Signal implements INodeType {
                 name: 'message',
                 type: 'string',
                 default: '',
-                description: 'The message to send',
+                description: 'The text message to send (optional for attachments)',
+                displayOptions: {
+                    show: {
+                        operation: ['sendMessage', 'sendAttachment'],
+                    },
+                },
+            },
+            {
+                displayName: 'Attachment URL',
+                name: 'attachmentUrl',
+                type: 'string',
+                default: '',
+                placeholder: 'https://example.com/image.jpg',
+                description: 'URL of the file or image to send (e.g., PNG, JPG, PDF, MP3 for voice notes)',
                 required: true,
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage'],
+                        operation: ['sendAttachment'],
+                    },
+                },
+            },
+            {
+                displayName: 'Group ID',
+                name: 'groupId',
+                type: 'string',
+                default: '',
+                placeholder: 'group.XXXXXXXXXXXXXXXXXXXXXXXXXX==',
+                description: 'ID of the group to update',
+                required: true,
+                displayOptions: {
+                    show: {
+                        operation: ['updateGroup'],
+                    },
+                },
+            },
+            {
+                displayName: 'Group Name',
+                name: 'groupName',
+                type: 'string',
+                default: '',
+                description: 'Name of the new or updated group',
+                required: false,
+                displayOptions: {
+                    show: {
+                        operation: ['createGroup', 'updateGroup'],
+                    },
+                },
+            },
+            {
+                displayName: 'Group Members',
+                name: 'groupMembers',
+                type: 'string',
+                default: '',
+                placeholder: '+1234567890,+0987654321',
+                description: 'Comma-separated list of phone numbers to add to the group',
+                required: false,
+                displayOptions: {
+                    show: {
+                        operation: ['createGroup', 'updateGroup'],
+                    },
+                },
+            },
+            {
+                displayName: 'Emoji',
+                name: 'emoji',
+                type: 'options',
+                default: '👍',
+                description: 'Emoji to send as a reaction (select or enter custom emoji)',
+                required: true,
+                typeOptions: {
+                    allowCustom: true,
+                },
+                options: [
+                    {
+                        name: 'Thumbs Up',
+                        value: '👍',
+                    },
+                    {
+                        name: 'Heart',
+                        value: '❤️',
+                    },
+                    {
+                        name: 'Smile',
+                        value: '😄',
+                    },
+                    {
+                        name: 'Sad',
+                        value: '😢',
+                    },
+                    {
+                        name: 'Angry',
+                        value: '😣',
+                    },
+                    {
+                        name: 'Star',
+                        value: '⭐',
+                    },
+                    {
+                        name: 'Fire',
+                        value: '🔥',
+                    },
+                    {
+                        name: 'Plus',
+                        value: '➕',
+                    },
+                    {
+                        name: 'Minus',
+                        value: '➖',
+                    },
+                    {
+                        name: 'Handshake',
+                        value: '🤝',
+                    },
+                ],
+                displayOptions: {
+                    show: {
+                        operation: ['sendReaction'],
+                    },
+                },
+            },
+            {
+                displayName: 'Target Author',
+                name: 'targetAuthor',
+                type: 'string',
+                default: '',
+                placeholder: '+1234567890',
+                description: 'Phone number of the message author to react to',
+                required: true,
+                displayOptions: {
+                    show: {
+                        operation: ['sendReaction', 'removeReaction'],
+                    },
+                },
+            },
+            {
+                displayName: 'Target Message Timestamp',
+                name: 'targetSentTimestamp',
+                type: 'number',
+                default: 0,
+                description: 'Timestamp of the message to react to (in milliseconds)',
+                required: true,
+                displayOptions: {
+                    show: {
+                        operation: ['sendReaction', 'removeReaction'],
                     },
                 },
             },
@@ -94,7 +259,7 @@ export class Signal implements INodeType {
                 description: 'Request timeout in seconds (set higher for Get Groups, e.g., 300)',
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'getContacts', 'getGroups'],
+                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'getContacts', 'getGroups', 'createGroup', 'updateGroup'],
                     },
                 },
                 typeOptions: {
@@ -117,76 +282,36 @@ export class Signal implements INodeType {
         const phoneNumber = credentials.phoneNumber as string;
 
         for (let i = 0; i < items.length; i++) {
-            // Отримуємо таймаут із параметрів (у секундах, конвертуємо в мс)
             const timeout = (this.getNodeParameter('timeout', i, operation === 'getGroups' ? 300 : 60) as number) * 1000;
-
-            // Налаштування axios з таймаутом
-            const axiosConfig: AxiosRequestConfig = {
-                headers: apiToken ? { Authorization: `Bearer ${apiToken}` } : {},
+            const params = {
+                recipient: this.getNodeParameter('recipient', i, '') as string,
+                message: this.getNodeParameter('message', i, '') as string,
+                attachmentUrl: this.getNodeParameter('attachmentUrl', i, '') as string,
+                groupId: this.getNodeParameter('groupId', i, '') as string,
+                groupName: this.getNodeParameter('groupName', i, '') as string,
+                groupMembers: this.getNodeParameter('groupMembers', i, '') as string,
+                emoji: this.getNodeParameter('emoji', i, '') as string,
+                targetAuthor: this.getNodeParameter('targetAuthor', i, '') as string,
+                targetSentTimestamp: this.getNodeParameter('targetSentTimestamp', i, 0) as number,
                 timeout,
-            };
-
-            // Retry-логіка
-            const retryRequest = async (request: () => Promise<any>, retries = 2, delay = 5000): Promise<any> => {
-                for (let attempt = 1; attempt <= retries; attempt++) {
-                    try {
-                        return await request();
-                    } catch (error) {
-                        if (attempt === retries) throw error;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    }
-                }
+                apiUrl,
+                apiToken,
+                phoneNumber,
             };
 
             try {
-                if (operation === 'sendMessage') {
-                    const recipient = this.getNodeParameter('recipient', i) as string;
-                    const message = this.getNodeParameter('message', i) as string;
-
-                    const response = await retryRequest(() =>
-                        axios.post(
-                            `${apiUrl}/v1/send`,
-                            {
-                                message,
-                                number: phoneNumber,
-                                recipients: [recipient],
-                            },
-                            axiosConfig
-                        )
-                    );
-
-                    returnData.push({
-                        json: response.data,
-                        pairedItem: { item: i },
-                    });
+                if (['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction'].includes(operation)) {
+                    const result = await executeMessagesOperation.call(this, operation, i, params);
+                    returnData.push(result);
+                } else if (['getGroups', 'createGroup', 'updateGroup'].includes(operation)) {
+                    const result = await executeGroupsOperation.call(this, operation, i, params);
+                    returnData.push(result);
                 } else if (operation === 'getContacts') {
-                    const response = await retryRequest(() =>
-                        axios.get(`${apiUrl}/v1/contacts/${phoneNumber}`, axiosConfig)
-                    );
-
-                    returnData.push({
-                        json: response.data,
-                        pairedItem: { item: i },
-                    });
-                } else if (operation === 'getGroups') {
-                    const response = await retryRequest(() =>
-                        axios.get(`${apiUrl}/v1/groups/${phoneNumber}`, axiosConfig)
-                    );
-
-                    returnData.push({
-                        json: response.data,
-                        pairedItem: { item: i },
-                    });
+                    const result = await executeContactsOperation.call(this, operation, i, params);
+                    returnData.push(result);
                 }
             } catch (error) {
-                const axiosError = error as AxiosError<SignalApiErrorResponse>;
-                throw new NodeApiError(this.getNode(), {
-                    message: axiosError.message,
-                    description: (axiosError.response?.data?.error || axiosError.message) as string,
-                    httpCode: axiosError.response?.status?.toString() || 'unknown',
-                }, {
-                    itemIndex: i,
-                });
+                throw error;
             }
         }
 

@@ -2,26 +2,35 @@
   "name": "n8n-nodes-signal",
   "version": "0.2.0",
   "description": "Signal Node for n8n",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZBlaZe/n8n-nodes-signal.git"
+  },
   "keywords": ["n8n-community", "signal", "messaging"],
   "license": "MIT",
   "main": "index.js",
   "scripts": {
-    "build": "tsc && copy nodes\\Signal\\signal.svg dist\\nodes\\Signal\\signal.svg",
+    "build": "tsc && copy nodes\\Signal\\signal.svg dist\\nodes\\Signal\\signal.svg && copy credentials\\signal.svg dist\\credentials\\signal.svg",
     "dev": "tsc --watch"
   },
   "n8n": {
     "n8nNodesApiVersion": 1,
-    "nodes": ["./dist/nodes/Signal/Signal.node.js"],
+    "nodes": [
+      "./dist/nodes/Signal/Signal.node.js",
+      "./dist/nodes/Signal/SignalTrigger.node.js"
+    ],
     "credentials": ["./dist/credentials/SignalApi.credentials.js"]
   },
   "dependencies": {
     "axios": "1.7.2",
-    "n8n-core": "1.110.0",
-    "n8n-workflow": "1.108.0",
-    "@types/node": "20.12.12"
+    "n8n-core": "1.111.0",
+    "n8n-workflow": "1.109.0",
+    "@types/node": "20.12.12",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "typescript": "5.4.5",
-    "ts-node": "10.9.2"
+    "ts-node": "10.9.2",
+    "@types/ws": "^8.5.12"
   }
 }
