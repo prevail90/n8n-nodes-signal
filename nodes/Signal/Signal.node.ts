@@ -3,6 +3,7 @@ import {
     INodeExecutionData,
     INodeType,
     INodeTypeDescription,
+    NodeApiError,
 } from 'n8n-workflow';
 import { executeMessagesOperation } from './messages';
 import { executeGroupsOperation } from './groups';
@@ -281,6 +282,8 @@ export class Signal implements INodeType {
         const apiToken = credentials.apiToken as string;
         const phoneNumber = credentials.phoneNumber as string;
 
+        this.logger.debug(`Signal: Starting execute for operation ${operation}, apiUrl: ${apiUrl}, items length: ${items.length}`);
+
         for (let i = 0; i < items.length; i++) {
             const timeout = (this.getNodeParameter('timeout', i, operation === 'getGroups' ? 300 : 60) as number) * 1000;
             const params = {
@@ -300,21 +303,26 @@ export class Signal implements INodeType {
             };
 
             try {
+                let result: INodeExecutionData;
                 if (['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction'].includes(operation)) {
-                    const result = await executeMessagesOperation.call(this, operation, i, params);
-                    returnData.push(result);
+                    result = await executeMessagesOperation.call(this, operation, i, params);
                 } else if (['getGroups', 'createGroup', 'updateGroup'].includes(operation)) {
-                    const result = await executeGroupsOperation.call(this, operation, i, params);
-                    returnData.push(result);
+                    result = await executeGroupsOperation.call(this, operation, i, params);
                 } else if (operation === 'getContacts') {
-                    const result = await executeContactsOperation.call(this, operation, i, params);
-                    returnData.push(result);
+                    result = await executeContactsOperation.call(this, operation, i, params);
+                } else {
+                    throw new NodeApiError(this.getNode(), { message: 'Unknown operation' });
                 }
+
+                this.logger.info(`Signal: Operation ${operation} result for item ${i}: ${JSON.stringify(result.json, null, 2)}`);
+                returnData.push(result);
             } catch (error) {
+                this.logger.error(`Signal: Error in operation ${operation} for item ${i}`, { error });
                 throw error;
             }
         }
 
+        this.logger.debug(`Signal: Returning data length: ${returnData.length}`);
         return [returnData];
     }
 }

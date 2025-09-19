@@ -44,8 +44,9 @@ export async function executeMessagesOperation(
     };
 
     try {
+        let response;
         if (operation === 'sendMessage') {
-            const response = await retryRequest(() =>
+            response = await retryRequest(() =>
                 axios.post(
                     `${apiUrl}/v1/send`,
                     {
@@ -56,9 +57,10 @@ export async function executeMessagesOperation(
                     axiosConfig
                 )
             );
-            return { json: response.data, pairedItem: { item: itemIndex } };
+            this.logger.debug(`Signal messages: sendMessage response: ${JSON.stringify(response.data, null, 2)}`);
+            return { json: response.data || { status: 'Message sent' }, pairedItem: { item: itemIndex } };
         } else if (operation === 'sendAttachment') {
-            const response = await retryRequest(() =>
+            response = await retryRequest(() =>
                 axios.post(
                     `${apiUrl}/v1/send`,
                     {
@@ -70,9 +72,10 @@ export async function executeMessagesOperation(
                     axiosConfig
                 )
             );
-            return { json: response.data, pairedItem: { item: itemIndex } };
+            this.logger.debug(`Signal messages: sendAttachment response: ${JSON.stringify(response.data, null, 2)}`);
+            return { json: response.data || { status: 'Attachment sent' }, pairedItem: { item: itemIndex } };
         } else if (operation === 'sendReaction') {
-            const response = await retryRequest(() =>
+            response = await retryRequest(() =>
                 axios.post(
                     `${apiUrl}/v1/reactions/${phoneNumber}`,
                     {
@@ -84,9 +87,10 @@ export async function executeMessagesOperation(
                     axiosConfig
                 )
             );
-            return { json: response.data, pairedItem: { item: itemIndex } };
+            this.logger.debug(`Signal messages: sendReaction response: ${JSON.stringify(response.data, null, 2)}`);
+            return { json: response.data || { status: 'Reaction sent' }, pairedItem: { item: itemIndex } };
         } else if (operation === 'removeReaction') {
-            const response = await retryRequest(() =>
+            response = await retryRequest(() =>
                 axios.delete(
                     `${apiUrl}/v1/reactions/${phoneNumber}`,
                     {
@@ -99,6 +103,7 @@ export async function executeMessagesOperation(
                     }
                 )
             );
+            this.logger.debug(`Signal messages: removeReaction response: ${JSON.stringify(response.data, null, 2)}`);
             return { json: response.data || { status: 'Reaction removed' }, pairedItem: { item: itemIndex } };
         }
         throw new NodeApiError(this.getNode(), { message: 'Unknown operation' });
