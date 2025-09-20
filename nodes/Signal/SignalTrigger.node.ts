@@ -40,25 +40,25 @@ export class SignalTrigger implements INodeType {
                 },
             },
             {
-                displayName: 'Only With Text',
-                name: 'onlyWithText',
-                type: 'boolean',
-                default: true,
-                description: 'Retrieve only messages with text content',
-            },
-            {
-                displayName: 'Only With Attachments',
-                name: 'onlyWithAttachments',
+                displayName: 'Ignore Messages',
+                name: 'ignoreMessages',
                 type: 'boolean',
                 default: false,
-                description: 'Retrieve only messages with attachments',
+                description: 'Enable to ignore messages with text content',
             },
             {
-                displayName: 'Only With Reactions',
-                name: 'onlyWithReactions',
+                displayName: 'Ignore Attachments',
+                name: 'ignoreAttachments',
                 type: 'boolean',
                 default: false,
-                description: 'Retrieve only messages with reactions',
+                description: 'Enable to ignore messages with attachments',
+            },
+            {
+                displayName: 'Ignore Reactions',
+                name: 'ignoreReactions',
+                type: 'boolean',
+                default: false,
+                description: 'Enable to ignore messages with reactions',
             },
         ],
     };
@@ -69,11 +69,12 @@ export class SignalTrigger implements INodeType {
         const apiToken = credentials.apiToken as string;
         const phoneNumber = credentials.phoneNumber as string;
         const reconnectDelay = (this.getNodeParameter('reconnectDelay', 0) as number) * 1000;
-        const onlyWithText = this.getNodeParameter('onlyWithText', 0) as boolean;
-        const onlyWithAttachments = this.getNodeParameter('onlyWithAttachments', 0) as boolean;
-        const onlyWithReactions = this.getNodeParameter('onlyWithReactions', 0) as boolean;
+        const ignoreMessages = this.getNodeParameter('ignoreMessages', 0) as boolean;
+        const ignoreAttachments = this.getNodeParameter('ignoreAttachments', 0) as boolean;
+        const ignoreReactions = this.getNodeParameter('ignoreReactions', 0) as boolean;
 
         const wsUrl = `${apiUrl.replace('http', 'ws')}/v1/receive/${phoneNumber}`;
+        this.logger.debug(`SignalTrigger: Attempting to connect to WS URL: ${wsUrl}`);
         const processedMessages = new Set<number>();
         const maxMessages = 1000;
 
@@ -82,10 +83,14 @@ export class SignalTrigger implements INodeType {
                 headers: apiToken ? { Authorization: `Bearer ${apiToken}` } : {},
             });
 
+            ws.on('open', () => {
+                this.logger.debug(`SignalTrigger: Successfully connected to ${wsUrl}`);
+            });
+
             ws.on('message', (data: Buffer) => {
                 try {
                     const message = JSON.parse(data.toString());
-                    this.logger.debug(`SignalTrigger: Received message: ${JSON.stringify(message, null, 2)}`);
+                    this.logger.debug(`SignalTrigger: Received raw message: ${JSON.stringify(message, null, 2)}`);
 
                     const timestamp = message.envelope?.timestamp || 0;
                     if (processedMessages.has(timestamp)) {
@@ -107,6 +112,8 @@ export class SignalTrigger implements INodeType {
                         account: message.account || '',
                     };
 
+                    this.logger.debug(`SignalTrigger: Processed message content: ${JSON.stringify(processedMessage, null, 2)}`);
+
                     // Ігнорувати події без вмісту
                     if (!processedMessage.messageText && 
                         processedMessage.attachments.length === 0 && 
@@ -115,11 +122,11 @@ export class SignalTrigger implements INodeType {
                         return;
                     }
 
-                    // Фільтрація за параметрами
-                    if ((onlyWithText && !processedMessage.messageText) || 
-                        (onlyWithAttachments && processedMessage.attachments.length === 0) || 
-                        (onlyWithReactions && processedMessage.reactions.length === 0)) {
-                        this.logger.debug(`SignalTrigger: Skipping filtered message with timestamp ${timestamp}`);
+                    // Фільтрація: ігнорувати, якщо увімкнено ignore і відповідний вміст присутній
+                    if ((ignoreMessages && processedMessage.messageText) ||
+                        (ignoreAttachments && processedMessage.attachments.length > 0) ||
+                        (ignoreReactions && processedMessage.reactions.length > 0)) {
+                        this.logger.debug(`SignalTrigger: Ignoring message with timestamp ${timestamp} due to filter`);
                         return;
                     }
 
@@ -150,7 +157,7 @@ export class SignalTrigger implements INodeType {
 
         return new Promise((resolve, reject) => {
             ws.on('open', () => {
-                this.logger.debug(`SignalTrigger: Connected to ${wsUrl}`);
+                this.logger.debug(`SignalTrigger: Initial connection to ${wsUrl}`);
                 resolve({
                     closeFunction: async () => {
                         ws.close();
