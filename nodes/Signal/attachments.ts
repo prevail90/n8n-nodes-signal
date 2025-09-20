@@ -66,25 +66,96 @@ export async function executeAttachmentsOperation(
             const contentType = response.headers['content-type'] || 'application/octet-stream';
             const contentDisposition = response.headers['content-disposition'] || '';
             const fileName = contentDisposition.match(/filename="(.+)"/)?.[1] || `attachment_${attachmentId}`;
+            const fileExtension = fileName.split('.').pop() || '';
             
             // Конвертуємо ArrayBuffer в Buffer для n8n
             const buffer = Buffer.from(response.data);
             
             this.logger.debug(`Attachments: Created buffer of size: ${buffer.length}`);
             
+            // Збираємо всі доступні headers
+            const allHeaders = response.headers || {};
+            
+            // Визначаємо тип файлу
+            const isImage = contentType.startsWith('image/');
+            const isVideo = contentType.startsWith('video/');
+            const isAudio = contentType.startsWith('audio/');
+            const isDocument = contentType.includes('pdf') || contentType.includes('document') || contentType.includes('text');
+            
+            // Форматуємо розмір файлу
+            const formatFileSize = (bytes: number): string => {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            };
+            
             return { 
                 json: { 
+                    // Основна інформація про файл
+                    attachmentId,
                     fileName,
+                    fileExtension,
                     mimeType: contentType,
-                    size: buffer.length,
-                    attachmentId 
+                    
+                    // Розмір файлу
+                    sizeBytes: buffer.length,
+                    sizeFormatted: formatFileSize(buffer.length),
+                    
+                    // Тип файлу
+                    fileType: {
+                        isImage,
+                        isVideo,
+                        isAudio,
+                        isDocument,
+                        category: isImage ? 'Image' : isVideo ? 'Video' : isAudio ? 'Audio' : isDocument ? 'Document' : 'Other'
+                    },
+                    
+                    // HTTP headers від API
+                    headers: Object.keys(allHeaders).reduce((acc, key) => {
+                        const value = allHeaders[key];
+                        if (value !== null && value !== undefined && value !== '') {
+                            acc[key] = value;
+                        }
+                        return acc;
+                    }, {} as Record<string, any>),
+                    
+                    // Додаткова інформація
+                    downloadInfo: {
+                        endpoint,
+                        downloadedAt: new Date().toISOString(),
+                        contentDisposition: contentDisposition || null,
+                        hasValidContent: buffer.length > 0,
+                        isEmpty: buffer.length === 0
+                    },
+                    
+                    // Статус завантаження
+                    status: buffer.length > 0 ? 'downloaded_successfully' : 'empty_attachment'
                 }, 
                 binary: { 
                     attachment: {
                         data: buffer.toString('base64'),
                         mimeType: contentType,
                         fileName: fileName,
-                        fileExtension: fileName.split('.').pop() || ''
+                        fileExtension,
+                        // Додаткові метадані для binary даних
+                        fileSize: buffer.length,
+                        id: attachmentId,
+                        directory: `/attachments/${phoneNumber}`,
+                        // Додаткові поля які можуть бути корисними
+                        encoding: 'base64',
+                        originalName: fileName,
+                        downloadedFrom: endpoint,
+                        downloadedAt: new Date().toISOString(),
+                        // Якщо є content-disposition, додаємо його
+                        ...(contentDisposition && { contentDisposition }),
+                        // Категорія файлу для зручності
+                        category: isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : isDocument ? 'document' : 'other',
+                        // MD5 хеш для ідентифікації (опціонально)
+                        ...(buffer.length > 0 && { 
+                            checksum: require('crypto').createHash('md5').update(buffer).digest('hex')
+                        })
                     }
                 }, 
                 pairedItem: { item: itemIndex } 
