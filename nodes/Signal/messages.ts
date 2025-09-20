@@ -56,7 +56,7 @@ export async function executeMessagesOperation(
                     axiosConfig
                 )
             );
-            return { json: response.data, pairedItem: { item: itemIndex } };
+            return { json: response.data || { status: 'Message sent' }, pairedItem: { item: itemIndex } };
         } else if (operation === 'sendAttachment') {
             const response = await retryRequest(() =>
                 axios.post(
@@ -70,7 +70,7 @@ export async function executeMessagesOperation(
                     axiosConfig
                 )
             );
-            return { json: response.data, pairedItem: { item: itemIndex } };
+            return { json: response.data || { status: 'Attachment sent' }, pairedItem: { item: itemIndex } };
         } else if (operation === 'sendReaction') {
             const response = await retryRequest(() =>
                 axios.post(
@@ -84,7 +84,7 @@ export async function executeMessagesOperation(
                     axiosConfig
                 )
             );
-            return { json: response.data, pairedItem: { item: itemIndex } };
+            return { json: response.data || { status: 'Reaction sent' }, pairedItem: { item: itemIndex } };
         } else if (operation === 'removeReaction') {
             const response = await retryRequest(() =>
                 axios.delete(

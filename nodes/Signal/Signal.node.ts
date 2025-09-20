@@ -3,10 +3,12 @@ import {
     INodeExecutionData,
     INodeType,
     INodeTypeDescription,
+    NodeApiError,
 } from 'n8n-workflow';
 import { executeMessagesOperation } from './messages';
 import { executeGroupsOperation } from './groups';
 import { executeContactsOperation } from './contacts';
+import { executeAttachmentsOperation } from './attachments';
 
 export class Signal implements INodeType {
     description: INodeTypeDescription = {
@@ -58,6 +60,24 @@ export class Signal implements INodeType {
                         value: 'removeReaction',
                         description: 'Remove a reaction from a message',
                         action: 'Remove a reaction',
+                    },
+                    {
+                        name: 'Attachments: List Attachments',
+                        value: 'listAttachments',
+                        description: 'List attachments for the account',
+                        action: 'List attachments',
+                    },
+                    {
+                        name: 'Attachments: Download Attachment',
+                        value: 'downloadAttachment',
+                        description: 'Download an attachment as binary file',
+                        action: 'Download attachment',
+                    },
+                    {
+                        name: 'Attachments: Remove Attachment',
+                        value: 'removeAttachment',
+                        description: 'Remove an attachment',
+                        action: 'Remove attachment',
                     },
                     {
                         name: 'Contacts: Get Contacts',
@@ -177,46 +197,16 @@ export class Signal implements INodeType {
                     allowCustom: true,
                 },
                 options: [
-                    {
-                        name: 'Thumbs Up',
-                        value: '👍',
-                    },
-                    {
-                        name: 'Heart',
-                        value: '❤️',
-                    },
-                    {
-                        name: 'Smile',
-                        value: '😄',
-                    },
-                    {
-                        name: 'Sad',
-                        value: '😢',
-                    },
-                    {
-                        name: 'Angry',
-                        value: '😣',
-                    },
-                    {
-                        name: 'Star',
-                        value: '⭐',
-                    },
-                    {
-                        name: 'Fire',
-                        value: '🔥',
-                    },
-                    {
-                        name: 'Plus',
-                        value: '➕',
-                    },
-                    {
-                        name: 'Minus',
-                        value: '➖',
-                    },
-                    {
-                        name: 'Handshake',
-                        value: '🤝',
-                    },
+                    { name: 'Thumbs Up', value: '👍' },
+                    { name: 'Heart', value: '❤️' },
+                    { name: 'Smile', value: '😄' },
+                    { name: 'Sad', value: '😢' },
+                    { name: 'Angry', value: '😣' },
+                    { name: 'Star', value: '⭐' },
+                    { name: 'Fire', value: '🔥' },
+                    { name: 'Plus', value: '➕' },
+                    { name: 'Minus', value: '➖' },
+                    { name: 'Handshake', value: '🤝' },
                 ],
                 displayOptions: {
                     show: {
@@ -252,6 +242,20 @@ export class Signal implements INodeType {
                 },
             },
             {
+                displayName: 'Attachment ID',
+                name: 'attachmentId',
+                type: 'string',
+                default: '',
+                placeholder: 'attachment_id_from_trigger.png',
+                description: 'ID of the attachment to download or remove',
+                required: true,
+                displayOptions: {
+                    show: {
+                        operation: ['downloadAttachment', 'removeAttachment'],
+                    },
+                },
+            },
+            {
                 displayName: 'Timeout (seconds)',
                 name: 'timeout',
                 type: 'number',
@@ -259,7 +263,7 @@ export class Signal implements INodeType {
                 description: 'Request timeout in seconds (set higher for Get Groups, e.g., 300)',
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'getContacts', 'getGroups', 'createGroup', 'updateGroup'],
+                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'getContacts', 'getGroups', 'createGroup', 'updateGroup', 'listAttachments', 'downloadAttachment', 'removeAttachment'],
                     },
                 },
                 typeOptions: {
@@ -281,6 +285,8 @@ export class Signal implements INodeType {
         const apiToken = credentials.apiToken as string;
         const phoneNumber = credentials.phoneNumber as string;
 
+        this.logger.debug(`Signal: Starting execute for operation ${operation}, items length: ${items.length}`);
+
         for (let i = 0; i < items.length; i++) {
             const timeout = (this.getNodeParameter('timeout', i, operation === 'getGroups' ? 300 : 60) as number) * 1000;
             const params = {
@@ -293,6 +299,7 @@ export class Signal implements INodeType {
                 emoji: this.getNodeParameter('emoji', i, '') as string,
                 targetAuthor: this.getNodeParameter('targetAuthor', i, '') as string,
                 targetSentTimestamp: this.getNodeParameter('targetSentTimestamp', i, 0) as number,
+                attachmentId: this.getNodeParameter('attachmentId', i, '') as string,
                 timeout,
                 apiUrl,
                 apiToken,
@@ -300,21 +307,28 @@ export class Signal implements INodeType {
             };
 
             try {
+                let result: INodeExecutionData;
                 if (['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction'].includes(operation)) {
-                    const result = await executeMessagesOperation.call(this, operation, i, params);
-                    returnData.push(result);
+                    result = await executeMessagesOperation.call(this, operation, i, params);
+                } else if (['listAttachments', 'downloadAttachment', 'removeAttachment'].includes(operation)) {
+                    result = await executeAttachmentsOperation.call(this, operation, i, params);
                 } else if (['getGroups', 'createGroup', 'updateGroup'].includes(operation)) {
-                    const result = await executeGroupsOperation.call(this, operation, i, params);
-                    returnData.push(result);
+                    result = await executeGroupsOperation.call(this, operation, i, params);
                 } else if (operation === 'getContacts') {
-                    const result = await executeContactsOperation.call(this, operation, i, params);
-                    returnData.push(result);
+                    result = await executeContactsOperation.call(this, operation, i, params);
+                } else {
+                    throw new NodeApiError(this.getNode(), { message: 'Unknown operation' });
                 }
+
+                this.logger.info(`Signal: Operation ${operation} result for item ${i}: ${JSON.stringify(result.json || result.binary, null, 2)}`);
+                returnData.push(result);
             } catch (error) {
+                this.logger.error(`Signal: Error in operation ${operation} for item ${i}`, { error });
                 throw error;
             }
         }
 
+        this.logger.debug(`Signal: Returning data length: ${returnData.length}`);
         return [returnData];
     }
 }
