@@ -93,7 +93,7 @@ services:
 
 1. In your n8n instance, go to **Settings** → **Community Nodes**
 2. Click **Install a community node**
-3. Enter the package name: `n8n-nodes-signal`
+3. Enter the package name: `n8n-nodes-signal-cli-rest-api`
 4. Click **Install**
 
 ### Method 2: Manual Installation
@@ -101,7 +101,7 @@ services:
 1. Navigate to your n8n installation directory
 2. Install the package:
    ```bash
-   npm install n8n-nodes-signal
+   npm install n8n-nodes-signal-cli-rest-api
    ```
 3. Restart n8n
 
