@@ -60,6 +60,13 @@ export class SignalTrigger implements INodeType {
                 default: false,
                 description: 'Enable to ignore messages with reactions',
             },
+            {
+                displayName: 'Mark Messages as Read',
+                name: 'markAsRead',
+                type: 'boolean',
+                default: false,
+                description: 'Automatically mark processed incoming messages as read',
+            },
         ],
     };
 
@@ -72,11 +79,44 @@ export class SignalTrigger implements INodeType {
         const ignoreMessages = this.getNodeParameter('ignoreMessages', 0) as boolean;
         const ignoreAttachments = this.getNodeParameter('ignoreAttachments', 0) as boolean;
         const ignoreReactions = this.getNodeParameter('ignoreReactions', 0) as boolean;
+        const markAsRead = this.getNodeParameter('markAsRead', 0) as boolean;
 
         const wsUrl = `${apiUrl.replace('http', 'ws')}/v1/receive/${phoneNumber}`;
         this.logger.debug(`SignalTrigger: Attempting to connect to WS URL: ${wsUrl}`);
         const processedMessages = new Set<number>();
         const maxMessages = 1000;
+
+        // Function to mark a message as read
+        const markMessageAsRead = async (sourceNumber: string, sourceUuid: string, timestamp: number) => {
+            try {
+                const readReceiptUrl = `${apiUrl}/v1/receipts/${phoneNumber}`;
+                const requestBody = {
+                    receipt_type: "read",
+                    recipient: sourceUuid,
+                    timestamp: timestamp
+                };
+
+                this.logger.debug(`SignalTrigger: Sending read receipt - URL: ${readReceiptUrl}, Body: ${JSON.stringify(requestBody)}`);
+
+                const response = await fetch(readReceiptUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
+                    },
+                    body: JSON.stringify(requestBody),
+                });
+
+                if (response.ok) {
+                    this.logger.debug(`SignalTrigger: Successfully marked message as read for ${sourceUuid}, timestamp: ${timestamp}`);
+                } else {
+                    const errorText = await response.text();
+                    this.logger.warn(`SignalTrigger: Failed to mark message as read: ${response.status} ${errorText}`);
+                }
+            } catch (error) {
+                this.logger.error(`SignalTrigger: Error marking message as read`, { error });
+            }
+        };
 
         const connectWebSocket = () => {
             const ws = new WebSocket(wsUrl, {
@@ -87,7 +127,7 @@ export class SignalTrigger implements INodeType {
                 this.logger.debug(`SignalTrigger: Successfully connected to ${wsUrl}`);
             });
 
-            ws.on('message', (data: Buffer) => {
+            ws.on('message', async (data: Buffer) => {
                 try {
                     const message = JSON.parse(data.toString());
                     this.logger.debug(`SignalTrigger: Received raw message: ${JSON.stringify(message, null, 2)}`);
@@ -104,6 +144,7 @@ export class SignalTrigger implements INodeType {
 
                     const dataMsg = message.envelope?.dataMessage || message.envelope?.syncMessage?.sentMessage || {};
                     
+                    // Determine the message type based on the envelope structure
                     const hasDataMessage = !!message.envelope?.dataMessage;
                     const hasSyncMessage = !!message.envelope?.syncMessage;
                     
@@ -111,7 +152,7 @@ export class SignalTrigger implements INodeType {
                     let messageType = 'unknown';
                     
                     if (hasDataMessage) {
-                        // Вхідне повідомлення - обробляємо
+                        // Incoming message - process
                         shouldProcess = true;
                         messageType = 'incoming';
                         this.logger.debug(`SignalTrigger: Incoming message detected`);
@@ -121,12 +162,12 @@ export class SignalTrigger implements INodeType {
                         const destinationUuid = sentMessage?.destinationUuid;
                         
                         if (sourceUuid === destinationUuid) {
-                            // Повідомлення самому собі - обробляємо
+                            // Message to self - process
                             shouldProcess = true;
                             messageType = 'self_note';
                             this.logger.debug(`SignalTrigger: Self note detected`);
                         } else {
-                            // Вихідне повідомлення комусь - НЕ обробляємо
+                            // Outgoing message to someone else - DO NOT process
                             shouldProcess = false;
                             messageType = 'outgoing';
                             this.logger.debug(`SignalTrigger: Outgoing message detected - skipping`);
@@ -157,6 +198,7 @@ export class SignalTrigger implements INodeType {
 
                     this.logger.debug(`SignalTrigger: Processed message content: ${JSON.stringify(processedMessage, null, 2)}`);
 
+                    // Filtering: ignore empty messages
                     if (!processedMessage.messageText && 
                         processedMessage.attachments.length === 0 && 
                         processedMessage.reactions.length === 0) {
@@ -164,6 +206,7 @@ export class SignalTrigger implements INodeType {
                         return;
                     }
 
+                    // Filtering: ignore if enabled and corresponding content is present
                     if ((ignoreMessages && processedMessage.messageText) ||
                         (ignoreAttachments && processedMessage.attachments.length > 0) ||
                         (ignoreReactions && processedMessage.reactions.length > 0)) {
@@ -176,6 +219,15 @@ export class SignalTrigger implements INodeType {
                     };
                     this.emit([this.helpers.returnJsonArray([returnData])]);
                     this.logger.debug(`SignalTrigger: Emitted message with timestamp ${timestamp}`);
+
+                    // Mark the message as read if it's an incoming message and the option is enabled
+                    if (markAsRead && messageType === 'incoming') {
+                        await markMessageAsRead(
+                            processedMessage.sourceNumber,
+                            processedMessage.sourceUuid,
+                            timestamp
+                        );
+                    }
                 } catch (error) {
                     this.logger.error('SignalTrigger: Error parsing message', { error });
                 }
