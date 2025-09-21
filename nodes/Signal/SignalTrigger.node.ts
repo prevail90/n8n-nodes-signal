@@ -103,18 +103,60 @@ export class SignalTrigger implements INodeType {
                     processedMessages.add(timestamp);
 
                     const dataMsg = message.envelope?.dataMessage || message.envelope?.syncMessage?.sentMessage || {};
+                    
+                    const hasDataMessage = !!message.envelope?.dataMessage;
+                    const hasSyncMessage = !!message.envelope?.syncMessage;
+                    
+                    let shouldProcess = false;
+                    let messageType = 'unknown';
+                    
+                    if (hasDataMessage) {
+                        // Вхідне повідомлення - обробляємо
+                        shouldProcess = true;
+                        messageType = 'incoming';
+                        this.logger.debug(`SignalTrigger: Incoming message detected`);
+                    } else if (hasSyncMessage) {
+                        const sentMessage = message.envelope.syncMessage.sentMessage;
+                        const sourceUuid = message.envelope.sourceUuid;
+                        const destinationUuid = sentMessage?.destinationUuid;
+                        
+                        if (sourceUuid === destinationUuid) {
+                            // Повідомлення самому собі - обробляємо
+                            shouldProcess = true;
+                            messageType = 'self_note';
+                            this.logger.debug(`SignalTrigger: Self note detected`);
+                        } else {
+                            // Вихідне повідомлення комусь - НЕ обробляємо
+                            shouldProcess = false;
+                            messageType = 'outgoing';
+                            this.logger.debug(`SignalTrigger: Outgoing message detected - skipping`);
+                        }
+                    }
+                    
+                    if (!shouldProcess) {
+                        this.logger.debug(`SignalTrigger: Skipping message type: ${messageType} with timestamp ${timestamp}`);
+                        return;
+                    }
+                    
                     const processedMessage = {
                         messageText: dataMsg.message || '',
                         attachments: dataMsg.attachments || [],
                         reactions: dataMsg.reactions || [],
                         sourceNumber: message.envelope?.sourceNumber || '',
+                        sourceUuid: message.envelope?.sourceUuid || '',
+                        sourceName: message.envelope?.sourceName || '',
                         timestamp: timestamp,
+                        serverReceivedTimestamp: message.envelope?.serverReceivedTimestamp || 0,
+                        serverDeliveredTimestamp: message.envelope?.serverDeliveredTimestamp || 0,
                         account: message.account || '',
+                        hasContent: message.envelope?.hasContent || false,
+                        isUnidentifiedSender: message.envelope?.isUnidentifiedSender || false,
+                        messageType: messageType,
+                        envelope: message.envelope || {},
                     };
 
                     this.logger.debug(`SignalTrigger: Processed message content: ${JSON.stringify(processedMessage, null, 2)}`);
 
-                    // Ігнорувати події без вмісту
                     if (!processedMessage.messageText && 
                         processedMessage.attachments.length === 0 && 
                         processedMessage.reactions.length === 0) {
@@ -122,7 +164,6 @@ export class SignalTrigger implements INodeType {
                         return;
                     }
 
-                    // Фільтрація: ігнорувати, якщо увімкнено ignore і відповідний вміст присутній
                     if ((ignoreMessages && processedMessage.messageText) ||
                         (ignoreAttachments && processedMessage.attachments.length > 0) ||
                         (ignoreReactions && processedMessage.reactions.length > 0)) {
