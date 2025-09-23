@@ -65,24 +65,65 @@ export async function executeAttachmentsOperation(
 
             const contentType = response.headers['content-type'] || 'application/octet-stream';
             const contentDisposition = response.headers['content-disposition'] || '';
-            const fileName = contentDisposition.match(/filename="(.+)"/)?.[1] || `attachment_${attachmentId}`;
+            
+            // Try to extract the original file name from various sources
+            let fileName = '';
+            
+            // 1. With content-disposition header
+            const dispositionMatch = contentDisposition.match(/filename[*]?=['"]?([^'";]+)['"]?/);
+            if (dispositionMatch) {
+                fileName = dispositionMatch[1];
+            }
+            
+            // 2. With content-disposition (filename*)
+            const filenameStarMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
+            if (filenameStarMatch) {
+                fileName = decodeURIComponent(filenameStarMatch[1]);
+            }
+            
+            // 3. Fallback до attachmentId with fallback extension
+            if (!fileName) {
+                const mimeToExt: Record<string, string> = {
+                    'application/pdf': 'pdf',
+                    'image/jpeg': 'jpg',
+                    'image/jpg': 'jpg',
+                    'image/png': 'png',
+                    'image/gif': 'gif',
+                    'image/webp': 'webp',
+                    'video/mp4': 'mp4',
+                    'video/mpeg': 'mpeg',
+                    'video/quicktime': 'mov',
+                    'audio/mpeg': 'mp3',
+                    'audio/wav': 'wav',
+                    'audio/ogg': 'ogg',
+                    'text/plain': 'txt',
+                    'application/msword': 'doc',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+                    'application/vnd.ms-excel': 'xls',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+                    'application/zip': 'zip',
+                    'application/x-rar-compressed': 'rar',
+                    'application/x-7z-compressed': '7z'
+                };
+                
+                const extension = mimeToExt[contentType] || 'bin';
+                fileName = `{attachmentId}`;
+            }
+            
             const fileExtension = fileName.split('.').pop() || '';
             
-            // Конвертуємо ArrayBuffer в Buffer для n8n
+            // Convert ArrayBuffer into Buffer for n8n
             const buffer = Buffer.from(response.data);
             
-            this.logger.debug(`Attachments: Created buffer of size: ${buffer.length}`);
+            this.logger.debug(`Attachments: Created buffer of size: ${buffer.length}, fileName: ${fileName}`);
             
-            // Збираємо всі доступні headers
-            const allHeaders = response.headers || {};
-            
-            // Визначаємо тип файлу
+            // Define file type
             const isImage = contentType.startsWith('image/');
             const isVideo = contentType.startsWith('video/');
             const isAudio = contentType.startsWith('audio/');
             const isDocument = contentType.includes('pdf') || contentType.includes('document') || contentType.includes('text');
             
-            // Форматуємо розмір файлу
+            // Format file size to human-readable string
             const formatFileSize = (bytes: number): string => {
                 if (bytes === 0) return '0 Bytes';
                 const k = 1024;
@@ -91,19 +132,26 @@ export async function executeAttachmentsOperation(
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
             };
             
+            // Create binary data in the format n8n expects
+            const binaryData = await this.helpers.prepareBinaryData(
+                buffer,
+                fileName,
+                contentType
+            );
+            
             return { 
                 json: { 
-                    // Основна інформація про файл
+                    // Main info about the file
                     attachmentId,
                     fileName,
                     fileExtension,
                     mimeType: contentType,
                     
-                    // Розмір файлу
+                    // File size
                     sizeBytes: buffer.length,
                     sizeFormatted: formatFileSize(buffer.length),
                     
-                    // Тип файлу
+                    // File type
                     fileType: {
                         isImage,
                         isVideo,
@@ -112,16 +160,16 @@ export async function executeAttachmentsOperation(
                         category: isImage ? 'Image' : isVideo ? 'Video' : isAudio ? 'Audio' : isDocument ? 'Document' : 'Other'
                     },
                     
-                    // HTTP headers від API
-                    headers: Object.keys(allHeaders).reduce((acc, key) => {
-                        const value = allHeaders[key];
+                    // HTTP headers from API
+                    headers: Object.keys(response.headers || {}).reduce((acc, key) => {
+                        const value = response.headers[key];
                         if (value !== null && value !== undefined && value !== '') {
                             acc[key] = value;
                         }
                         return acc;
                     }, {} as Record<string, any>),
                     
-                    // Додаткова інформація
+                    // Additional Info
                     downloadInfo: {
                         endpoint,
                         downloadedAt: new Date().toISOString(),
@@ -130,33 +178,11 @@ export async function executeAttachmentsOperation(
                         isEmpty: buffer.length === 0
                     },
                     
-                    // Статус завантаження
+                    // Download status
                     status: buffer.length > 0 ? 'downloaded_successfully' : 'empty_attachment'
                 }, 
                 binary: { 
-                    attachment: {
-                        data: buffer.toString('base64'),
-                        mimeType: contentType,
-                        fileName: fileName,
-                        fileExtension,
-                        // Додаткові метадані для binary даних
-                        fileSize: buffer.length,
-                        id: attachmentId,
-                        directory: `/attachments/${phoneNumber}`,
-                        // Додаткові поля які можуть бути корисними
-                        encoding: 'base64',
-                        originalName: fileName,
-                        downloadedFrom: endpoint,
-                        downloadedAt: new Date().toISOString(),
-                        // Якщо є content-disposition, додаємо його
-                        ...(contentDisposition && { contentDisposition }),
-                        // Категорія файлу для зручності
-                        category: isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : isDocument ? 'document' : 'other',
-                        // MD5 хеш для ідентифікації (опціонально)
-                        ...(buffer.length > 0 && { 
-                            checksum: require('crypto').createHash('md5').update(buffer).digest('hex')
-                        })
-                    }
+                    data: binaryData
                 }, 
                 pairedItem: { item: itemIndex } 
             };
