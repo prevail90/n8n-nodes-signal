@@ -107,7 +107,7 @@ export async function executeAttachmentsOperation(
                 };
                 
                 const extension = mimeToExt[contentType] || 'bin';
-                fileName = `{attachmentId}`;
+                fileName = `${attachmentId}`;
             }
             
             const fileExtension = fileName.split('.').pop() || '';
