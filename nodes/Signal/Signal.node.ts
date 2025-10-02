@@ -62,6 +62,18 @@ export class Signal implements INodeType {
                         action: 'Remove a reaction',
                     },
                     {
+                        name: 'Messages: Start Typing',
+                        value: 'startTyping',
+                        description: 'Show typing indicator to recipient',
+                        action: 'Start typing indicator',
+                    },
+                    {
+                        name: 'Messages: Stop Typing',
+                        value: 'stopTyping',
+                        description: 'Stop showing typing indicator to recipient',
+                        action: 'Stop typing indicator',
+                    },
+                    {
                         name: 'Attachments: List Attachments',
                         value: 'listAttachments',
                         description: 'List attachments for the account',
@@ -111,11 +123,11 @@ export class Signal implements INodeType {
                 type: 'string',
                 default: '',
                 placeholder: '+1234567890 or groupId',
-                description: 'Phone number or group ID to send the message, attachment, or reaction to',
+                description: 'Phone number or group ID to send the message, attachment, reaction, or typing indicator to',
                 required: true,
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction'],
+                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping'],
                     },
                 },
             },
@@ -263,7 +275,7 @@ export class Signal implements INodeType {
                 description: 'Request timeout in seconds (set higher for Get Groups, e.g., 300)',
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'getContacts', 'getGroups', 'createGroup', 'updateGroup', 'listAttachments', 'downloadAttachment', 'removeAttachment'],
+                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping', 'getContacts', 'getGroups', 'createGroup', 'updateGroup', 'listAttachments', 'downloadAttachment', 'removeAttachment'],
                     },
                 },
                 typeOptions: {
@@ -308,7 +320,7 @@ export class Signal implements INodeType {
 
             try {
                 let result: INodeExecutionData;
-                if (['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction'].includes(operation)) {
+                if (['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping'].includes(operation)) {
                     result = await executeMessagesOperation.call(this, operation, i, params);
                 } else if (['listAttachments', 'downloadAttachment', 'removeAttachment'].includes(operation)) {
                     result = await executeAttachmentsOperation.call(this, operation, i, params);

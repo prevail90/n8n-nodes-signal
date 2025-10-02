@@ -100,6 +100,48 @@ export async function executeMessagesOperation(
                 )
             );
             return { json: response.data || { status: 'Reaction removed' }, pairedItem: { item: itemIndex } };
+        } else if (operation === 'startTyping') {
+            const response = await retryRequest(() =>
+                axios.put(
+                    `${apiUrl}/v1/typing-indicator/${phoneNumber}`,
+                    {
+                        recipient,
+                        action: "start",
+                    },
+                    axiosConfig
+                )
+            );
+            return { 
+                json: { 
+                    status: 'Typing indicator started', 
+                    recipient, 
+                    action: 'start',
+                    timestamp: new Date().toISOString(),
+                    ...response.data
+                }, 
+                pairedItem: { item: itemIndex } 
+            };
+        } else if (operation === 'stopTyping') {
+            const response = await retryRequest(() =>
+                axios.put(
+                    `${apiUrl}/v1/typing-indicator/${phoneNumber}`,
+                    {
+                        recipient,
+                        action: "stop",
+                    },
+                    axiosConfig
+                )
+            );
+            return { 
+                json: { 
+                    status: 'Typing indicator stopped', 
+                    recipient, 
+                    action: 'stop',
+                    timestamp: new Date().toISOString(),
+                    ...response.data
+                }, 
+                pairedItem: { item: itemIndex } 
+            };
         }
         throw new NodeApiError(this.getNode(), { message: 'Unknown operation' });
     } catch (error) {
