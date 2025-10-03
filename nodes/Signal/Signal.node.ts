@@ -40,7 +40,7 @@ export class Signal implements INodeType {
                     {
                         name: 'Messages: Send Message',
                         value: 'sendMessage',
-                        description: 'Send a text message to a contact or group',
+                        description: 'Send a text message to a contact or group, optionally with attachments',
                         action: 'Send a text message',
                     },
                     {
@@ -144,6 +144,34 @@ export class Signal implements INodeType {
                 },
             },
             {
+                displayName: 'Additional Fields',
+                name: 'additionalFields',
+                type: 'fixedCollection',
+                default: {},
+                placeholder: 'Add Field',
+                description: 'Additional options for sending the message',
+                displayOptions: {
+                    show: {
+                        operation: ['sendMessage'],
+                    },
+                },
+                options: [
+                    {
+                        name: 'binaryField',
+                        displayName: 'Binary Field',
+                        values: [
+                            {
+                                displayName: 'Input Binary Field',
+                                name: 'inputBinaryField',
+                                type: 'string',
+                                default: 'data',
+                                description: 'Name of the binary field containing the file to send',
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
                 displayName: 'Attachment URL',
                 name: 'attachmentUrl',
                 type: 'string',
@@ -176,8 +204,7 @@ export class Signal implements INodeType {
                 name: 'groupName',
                 type: 'string',
                 default: '',
-                description: 'Name of the new or updated group',
-                required: false,
+                description: 'Name of the group to create or update',
                 displayOptions: {
                     show: {
                         operation: ['createGroup', 'updateGroup'],
@@ -191,7 +218,6 @@ export class Signal implements INodeType {
                 default: '',
                 placeholder: '+1234567890,+0987654321',
                 description: 'Comma-separated list of phone numbers to add to the group',
-                required: false,
                 displayOptions: {
                     show: {
                         operation: ['createGroup', 'updateGroup'],
@@ -301,6 +327,7 @@ export class Signal implements INodeType {
 
         for (let i = 0; i < items.length; i++) {
             const timeout = (this.getNodeParameter('timeout', i, operation === 'getGroups' ? 300 : 60) as number) * 1000;
+            const additionalFields = this.getNodeParameter('additionalFields', i, {}) as { binaryField?: { inputBinaryField?: string } };
             const params = {
                 recipient: this.getNodeParameter('recipient', i, '') as string,
                 message: this.getNodeParameter('message', i, '') as string,
@@ -312,6 +339,7 @@ export class Signal implements INodeType {
                 targetAuthor: this.getNodeParameter('targetAuthor', i, '') as string,
                 targetSentTimestamp: this.getNodeParameter('targetSentTimestamp', i, 0) as number,
                 attachmentId: this.getNodeParameter('attachmentId', i, '') as string,
+                inputBinaryField: additionalFields.binaryField?.inputBinaryField,
                 timeout,
                 apiUrl,
                 apiToken,
