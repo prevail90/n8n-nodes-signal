@@ -9,7 +9,6 @@ interface SignalApiErrorResponse {
 interface OperationParams {
     recipient?: string;
     message?: string;
-    attachmentUrl?: string;
     emoji?: string;
     targetAuthor?: string;
     targetSentTimestamp?: number;
@@ -26,7 +25,7 @@ export async function executeMessagesOperation(
     itemIndex: number,
     params: OperationParams,
 ): Promise<INodeExecutionData> {
-    const { recipient, message, attachmentUrl, emoji, targetAuthor, targetSentTimestamp, inputBinaryFields, timeout, apiUrl, apiToken, phoneNumber } = params;
+    const { recipient, message, emoji, targetAuthor, targetSentTimestamp, inputBinaryFields, timeout, apiUrl, apiToken, phoneNumber } = params;
 
     const axiosConfig: AxiosRequestConfig = {
         headers: apiToken ? { Authorization: `Bearer ${apiToken}` } : {},
@@ -115,25 +114,6 @@ export async function executeMessagesOperation(
             );
             this.logger.debug(`Signal: Response: ${JSON.stringify(response.data, null, 2)}`);
             return { json: response.data || { status: 'Message sent' }, pairedItem: { item: itemIndex } };
-        } else if (operation === 'sendAttachment') {
-            if (!recipient) {
-                throw new NodeApiError(this.getNode(), {
-                    message: 'Recipient is required for sending an attachment',
-                }, { itemIndex });
-            }
-            const response = await retryRequest(() =>
-                axios.post(
-                    `${apiUrl}/v1/send`,
-                    {
-                        message,
-                        number: phoneNumber,
-                        recipients: [recipient],
-                        attachments: [attachmentUrl],
-                    },
-                    axiosConfig
-                )
-            );
-            return { json: response.data || { status: 'Attachment sent' }, pairedItem: { item: itemIndex } };
         } else if (operation === 'sendReaction') {
             if (!recipient) {
                 throw new NodeApiError(this.getNode(), {

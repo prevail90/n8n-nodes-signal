@@ -44,12 +44,6 @@ export class Signal implements INodeType {
                         action: 'Send a text message',
                     },
                     {
-                        name: 'Messages: Send Attachment',
-                        value: 'sendAttachment',
-                        description: 'Send a file or image to a contact or group',
-                        action: 'Send an attachment',
-                    },
-                    {
                         name: 'Messages: Send Reaction',
                         value: 'sendReaction',
                         description: 'Send a reaction (emoji) to a message',
@@ -123,11 +117,11 @@ export class Signal implements INodeType {
                 type: 'string',
                 default: '',
                 placeholder: '+1234567890 or groupId',
-                description: 'Phone number or group ID to send the message, attachment, reaction, or typing indicator to',
+                description: 'Phone number or group ID to send the message, reaction, or typing indicator to',
                 required: true,
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping'],
+                        operation: ['sendMessage', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping'],
                     },
                 },
             },
@@ -139,7 +133,7 @@ export class Signal implements INodeType {
                 description: 'The text message to send (optional for attachments)',
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment'],
+                        operation: ['sendMessage'],
                     },
                 },
             },
@@ -173,20 +167,6 @@ export class Signal implements INodeType {
                         ],
                     },
                 ],
-            },
-            {
-                displayName: 'Attachment URL',
-                name: 'attachmentUrl',
-                type: 'string',
-                default: '',
-                placeholder: 'https://example.com/image.jpg',
-                description: 'URL of the file or image to send (e.g., PNG, JPG, PDF, MP3 for voice notes)',
-                required: true,
-                displayOptions: {
-                    show: {
-                        operation: ['sendAttachment'],
-                    },
-                },
             },
             {
                 displayName: 'Group ID',
@@ -304,7 +284,7 @@ export class Signal implements INodeType {
                 description: 'Request timeout in seconds (set higher for Get Groups, e.g., 300)',
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping', 'getContacts', 'getGroups', 'createGroup', 'updateGroup', 'listAttachments', 'downloadAttachment', 'removeAttachment'],
+                        operation: ['sendMessage', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping', 'getContacts', 'getGroups', 'createGroup', 'updateGroup', 'listAttachments', 'downloadAttachment', 'removeAttachment'],
                     },
                 },
                 typeOptions: {
@@ -342,7 +322,6 @@ export class Signal implements INodeType {
             const params = {
                 recipient: this.getNodeParameter('recipient', i, '') as string,
                 message: this.getNodeParameter('message', i, '') as string,
-                attachmentUrl: this.getNodeParameter('attachmentUrl', i, '') as string,
                 groupId: this.getNodeParameter('groupId', i, '') as string,
                 groupName: this.getNodeParameter('groupName', i, '') as string,
                 groupMembers: this.getNodeParameter('groupMembers', i, '') as string,
@@ -359,7 +338,7 @@ export class Signal implements INodeType {
 
             try {
                 let result: INodeExecutionData;
-                if (['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping'].includes(operation)) {
+                if (['sendMessage', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping'].includes(operation)) {
                     result = await executeMessagesOperation.call(this, operation, i, params);
                 } else if (['listAttachments', 'downloadAttachment', 'removeAttachment'].includes(operation)) {
                     result = await executeAttachmentsOperation.call(this, operation, i, params);
