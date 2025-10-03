@@ -40,14 +40,8 @@ export class Signal implements INodeType {
                     {
                         name: 'Messages: Send Message',
                         value: 'sendMessage',
-                        description: 'Send a text message to a contact or group',
+                        description: 'Send a text message to a contact or group, optionally with attachments',
                         action: 'Send a text message',
-                    },
-                    {
-                        name: 'Messages: Send Attachment',
-                        value: 'sendAttachment',
-                        description: 'Send a file or image to a contact or group',
-                        action: 'Send an attachment',
                     },
                     {
                         name: 'Messages: Send Reaction',
@@ -123,11 +117,11 @@ export class Signal implements INodeType {
                 type: 'string',
                 default: '',
                 placeholder: '+1234567890 or groupId',
-                description: 'Phone number or group ID to send the message, attachment, reaction, or typing indicator to',
+                description: 'Phone number or group ID to send the message, reaction, or typing indicator to',
                 required: true,
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping'],
+                        operation: ['sendMessage', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping'],
                     },
                 },
             },
@@ -139,23 +133,40 @@ export class Signal implements INodeType {
                 description: 'The text message to send (optional for attachments)',
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment'],
+                        operation: ['sendMessage'],
                     },
                 },
             },
             {
-                displayName: 'Attachment URL',
-                name: 'attachmentUrl',
-                type: 'string',
-                default: '',
-                placeholder: 'https://example.com/image.jpg',
-                description: 'URL of the file or image to send (e.g., PNG, JPG, PDF, MP3 for voice notes)',
-                required: true,
+                displayName: 'Binary Fields',
+                name: 'binaryFields',
+                type: 'fixedCollection',
+                typeOptions: {
+                    multipleValues: true,
+                },
+                default: {},
+                placeholder: 'Add Binary Field',
+                description: 'Binary fields for attachments (empty or invalid fields are ignored)',
                 displayOptions: {
                     show: {
-                        operation: ['sendAttachment'],
+                        operation: ['sendMessage'],
                     },
                 },
+                options: [
+                    {
+                        name: 'binaryFieldValues',
+                        displayName: 'Binary Field',
+                        values: [
+                            {
+                                displayName: 'Input Binary Field',
+                                name: 'inputBinaryField',
+                                type: 'string',
+                                default: '',
+                                description: 'Name of the binary field containing the file to send (e.g., data)',
+                            },
+                        ],
+                    },
+                ],
             },
             {
                 displayName: 'Group ID',
@@ -176,8 +187,7 @@ export class Signal implements INodeType {
                 name: 'groupName',
                 type: 'string',
                 default: '',
-                description: 'Name of the new or updated group',
-                required: false,
+                description: 'Name of the group to create or update',
                 displayOptions: {
                     show: {
                         operation: ['createGroup', 'updateGroup'],
@@ -191,7 +201,6 @@ export class Signal implements INodeType {
                 default: '',
                 placeholder: '+1234567890,+0987654321',
                 description: 'Comma-separated list of phone numbers to add to the group',
-                required: false,
                 displayOptions: {
                     show: {
                         operation: ['createGroup', 'updateGroup'],
@@ -275,7 +284,7 @@ export class Signal implements INodeType {
                 description: 'Request timeout in seconds (set higher for Get Groups, e.g., 300)',
                 displayOptions: {
                     show: {
-                        operation: ['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping', 'getContacts', 'getGroups', 'createGroup', 'updateGroup', 'listAttachments', 'downloadAttachment', 'removeAttachment'],
+                        operation: ['sendMessage', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping', 'getContacts', 'getGroups', 'createGroup', 'updateGroup', 'listAttachments', 'downloadAttachment', 'removeAttachment'],
                     },
                 },
                 typeOptions: {
@@ -301,10 +310,18 @@ export class Signal implements INodeType {
 
         for (let i = 0; i < items.length; i++) {
             const timeout = (this.getNodeParameter('timeout', i, operation === 'getGroups' ? 300 : 60) as number) * 1000;
+            const binaryFields = this.getNodeParameter('binaryFields', i, {}) as { binaryFieldValues?: { inputBinaryField: string }[] };
+            const inputBinaryFields = binaryFields.binaryFieldValues
+                ? binaryFields.binaryFieldValues
+                    .map(value => value.inputBinaryField)
+                    .filter(field => field.trim() !== '') // Filter out empty fields
+                : [];
+            
+            this.logger.debug(`Signal: Input binary fields for item ${i}: ${JSON.stringify(inputBinaryFields)}`);
+
             const params = {
                 recipient: this.getNodeParameter('recipient', i, '') as string,
                 message: this.getNodeParameter('message', i, '') as string,
-                attachmentUrl: this.getNodeParameter('attachmentUrl', i, '') as string,
                 groupId: this.getNodeParameter('groupId', i, '') as string,
                 groupName: this.getNodeParameter('groupName', i, '') as string,
                 groupMembers: this.getNodeParameter('groupMembers', i, '') as string,
@@ -312,6 +329,7 @@ export class Signal implements INodeType {
                 targetAuthor: this.getNodeParameter('targetAuthor', i, '') as string,
                 targetSentTimestamp: this.getNodeParameter('targetSentTimestamp', i, 0) as number,
                 attachmentId: this.getNodeParameter('attachmentId', i, '') as string,
+                inputBinaryFields,
                 timeout,
                 apiUrl,
                 apiToken,
@@ -320,7 +338,7 @@ export class Signal implements INodeType {
 
             try {
                 let result: INodeExecutionData;
-                if (['sendMessage', 'sendAttachment', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping'].includes(operation)) {
+                if (['sendMessage', 'sendReaction', 'removeReaction', 'startTyping', 'stopTyping'].includes(operation)) {
                     result = await executeMessagesOperation.call(this, operation, i, params);
                 } else if (['listAttachments', 'downloadAttachment', 'removeAttachment'].includes(operation)) {
                     result = await executeAttachmentsOperation.call(this, operation, i, params);
