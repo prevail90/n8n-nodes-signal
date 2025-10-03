@@ -144,11 +144,15 @@ export class Signal implements INodeType {
                 },
             },
             {
-                displayName: 'Additional Fields',
-                name: 'additionalFields',
-                type: 'collection',
-                placeholder: 'Add Field',
+                displayName: 'Binary Fields',
+                name: 'binaryFields',
+                type: 'fixedCollection',
+                typeOptions: {
+                    multipleValues: true,
+                },
                 default: {},
+                placeholder: 'Add Binary Field',
+                description: 'Binary fields for attachments (empty or invalid fields are ignored)',
                 displayOptions: {
                     show: {
                         operation: ['sendMessage'],
@@ -156,11 +160,17 @@ export class Signal implements INodeType {
                 },
                 options: [
                     {
-                        displayName: 'Binary Fields',
-                        name: 'binaryFields',
-                        type: 'string',
-                        default: 'data',
-                        description: 'Comma-separated list of binary field names containing the files to send',
+                        name: 'binaryFieldValues',
+                        displayName: 'Binary Field',
+                        values: [
+                            {
+                                displayName: 'Input Binary Field',
+                                name: 'inputBinaryField',
+                                type: 'string',
+                                default: '',
+                                description: 'Name of the binary field containing the file to send (e.g., data)',
+                            },
+                        ],
                     },
                 ],
             },
@@ -320,9 +330,11 @@ export class Signal implements INodeType {
 
         for (let i = 0; i < items.length; i++) {
             const timeout = (this.getNodeParameter('timeout', i, operation === 'getGroups' ? 300 : 60) as number) * 1000;
-            const additionalFields = this.getNodeParameter('additionalFields', i, {}) as { binaryFields?: string };
-            const inputBinaryFields = additionalFields.binaryFields
-                ? additionalFields.binaryFields.split(',').map(field => field.trim()).filter(field => field)
+            const binaryFields = this.getNodeParameter('binaryFields', i, {}) as { binaryFieldValues?: { inputBinaryField: string }[] };
+            const inputBinaryFields = binaryFields.binaryFieldValues
+                ? binaryFields.binaryFieldValues
+                    .map(value => value.inputBinaryField)
+                    .filter(field => field.trim() !== '') // Filter out empty fields
                 : [];
             
             this.logger.debug(`Signal: Input binary fields for item ${i}: ${JSON.stringify(inputBinaryFields)}`);
