@@ -53,7 +53,7 @@ services:
     ports:
       - "8085:8080"  # Change 8085 to available port if needed (e.g., 8003:8080)
     volumes:
-      - /mnt/your-pool/signal-data:/home/.local/share/signal-cli  # Replace /mnt/your-pool with your dataset/pool in TrueNAS
+      - /mnt/your-pool/signal-data:/home/.local/share/signal-cli  # Replace /mnt/your-pool with your path to signal data
       # Additionally, for config: - /mnt/your-pool/signal-config:/etc/signal-cli-rest-api (if custom settings)
     environment:
       - MODE=json-rpc  # Recommended for speed and resolves group reception issues
