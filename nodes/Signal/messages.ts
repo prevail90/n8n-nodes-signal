@@ -13,7 +13,7 @@ interface OperationParams {
     emoji?: string;
     targetAuthor?: string;
     targetSentTimestamp?: number;
-    inputBinaryField?: string;
+    inputBinaryFields?: string[];
     timeout: number;
     apiUrl: string;
     apiToken: string;
@@ -26,7 +26,7 @@ export async function executeMessagesOperation(
     itemIndex: number,
     params: OperationParams,
 ): Promise<INodeExecutionData> {
-    const { recipient, message, attachmentUrl, emoji, targetAuthor, targetSentTimestamp, inputBinaryField, timeout, apiUrl, apiToken, phoneNumber } = params;
+    const { recipient, message, attachmentUrl, emoji, targetAuthor, targetSentTimestamp, inputBinaryFields, timeout, apiUrl, apiToken, phoneNumber } = params;
 
     const axiosConfig: AxiosRequestConfig = {
         headers: apiToken ? { Authorization: `Bearer ${apiToken}` } : {},
@@ -58,41 +58,52 @@ export async function executeMessagesOperation(
                 recipients: [recipient],
             };
 
-            // Handle binary attachments if inputBinaryField is specified and valid
-            if (inputBinaryField) {
+            // Handle binary attachments if inputBinaryFields are specified and valid
+            if (inputBinaryFields && inputBinaryFields.length > 0) {
                 const binary = this.getInputData()[itemIndex].binary;
-                if (!binary || !binary[inputBinaryField]) {
-                    throw new NodeApiError(this.getNode(), {
-                        message: `Binary data not found for field '${inputBinaryField}'`,
-                    }, { itemIndex });
-                }
+                if (!binary) {
+                    this.logger.debug(`Signal: No binary data for item ${itemIndex}, skipping attachments`);
+                } else {
+                    const base64Attachments: string[] = [];
+                    for (const inputBinaryField of inputBinaryFields) {
+                        if (!binary[inputBinaryField]) {
+                            this.logger.debug(`Signal: No binary data for field '${inputBinaryField}' in item ${itemIndex}, skipping`);
+                            continue;
+                        }
 
-                const binaryData = binary[inputBinaryField];
-                // Validate binary data
-                if (!binaryData.data || binaryData.data.length === 0) {
-                    throw new NodeApiError(this.getNode(), {
-                        message: `Binary data in field '${inputBinaryField}' is empty`,
-                    }, { itemIndex });
-                }
+                        const binaryData = binary[inputBinaryField];
+                        // Skip if binary data is empty
+                        if (!binaryData.data || binaryData.data.length === 0) {
+                            this.logger.debug(`Signal: Binary data in field '${inputBinaryField}' is empty for item ${itemIndex}, skipping`);
+                            continue;
+                        }
 
-                // Check file size (Signal limit: 100MB)
-                const maxFileSizeBytes = 99 * 1024 * 1024; // 99MB to be safe
-                const binaryBuffer = Buffer.from(binaryData.data, 'base64');
-                if (binaryBuffer.length > maxFileSizeBytes) {
-                    throw new NodeApiError(this.getNode(), {
-                        message: `File size exceeds Signal's 100MB limit (size: ${(binaryBuffer.length / (1024 * 1024)).toFixed(2)}MB). See https://support.signal.org/hc/en-us/articles/360007320391-What-kinds-of-files-can-I-send`,
-                    }, { itemIndex });
-                }
+                        // Check file size (Signal limit: 100MB)
+                        const maxFileSizeBytes = 99 * 1024 * 1024; // 99MB to be safe
+                        const binaryBuffer = Buffer.from(binaryData.data, 'base64');
+                        if (binaryBuffer.length > maxFileSizeBytes) {
+                            throw new NodeApiError(this.getNode(), {
+                                message: `File size exceeds Signal's 100MB limit (size: ${(binaryBuffer.length / (1024 * 1024)).toFixed(2)}MB). See https://support.signal.org/hc/en-us/articles/360007320391-What-kinds-of-files-can-I-send`,
+                            }, { itemIndex });
+                        }
 
-                // Convert binary data to base64
-                const base64Data = binaryBuffer.toString('base64');
-                const mimeType = binaryData.mimeType || 'application/octet-stream';
-                const fileName = binaryData.fileName || `attachment_${itemIndex}`;
-                
-                // Use plain base64 string as per documentation
-                body.base64_attachments = [base64Data];
-                this.logger.debug(`Signal: Added base64 attachment for item ${itemIndex}: ${fileName}, MIME: ${mimeType}, Size: ${binaryBuffer.length} bytes`);
-                this.logger.debug(`Signal: Attachment base64 length: ${base64Data.length} characters`);
+                        // Convert binary data to base64
+                        const base64Data = binaryBuffer.toString('base64');
+                        const mimeType = binaryData.mimeType || 'application/octet-stream';
+                        const fileName = binaryData.fileName || `attachment_${itemIndex}_${inputBinaryField}`;
+                        
+                        // Use plain base64 string as per documentation
+                        base64Attachments.push(base64Data);
+                        this.logger.debug(`Signal: Added base64 attachment for item ${itemIndex}, field '${inputBinaryField}': ${fileName}, MIME: ${mimeType}, Size: ${binaryBuffer.length} bytes`);
+                        this.logger.debug(`Signal: Attachment base64 length: ${base64Data.length} characters`);
+                    }
+
+                    if (base64Attachments.length > 0) {
+                        body.base64_attachments = base64Attachments;
+                    } else {
+                        this.logger.debug(`Signal: No valid attachments for item ${itemIndex}, sending text only`);
+                    }
+                }
             }
 
             // Use /v2/send if base64_attachments are present, otherwise /v1/send

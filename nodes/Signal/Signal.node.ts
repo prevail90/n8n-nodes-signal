@@ -146,10 +146,9 @@ export class Signal implements INodeType {
             {
                 displayName: 'Additional Fields',
                 name: 'additionalFields',
-                type: 'fixedCollection',
-                default: {},
+                type: 'collection',
                 placeholder: 'Add Field',
-                description: 'Additional options for sending the message',
+                default: {},
                 displayOptions: {
                     show: {
                         operation: ['sendMessage'],
@@ -157,17 +156,11 @@ export class Signal implements INodeType {
                 },
                 options: [
                     {
-                        name: 'binaryField',
-                        displayName: 'Binary Field',
-                        values: [
-                            {
-                                displayName: 'Input Binary Field',
-                                name: 'inputBinaryField',
-                                type: 'string',
-                                default: 'data',
-                                description: 'Name of the binary field containing the file to send',
-                            },
-                        ],
+                        displayName: 'Binary Fields',
+                        name: 'binaryFields',
+                        type: 'string',
+                        default: 'data',
+                        description: 'Comma-separated list of binary field names containing the files to send',
                     },
                 ],
             },
@@ -327,7 +320,13 @@ export class Signal implements INodeType {
 
         for (let i = 0; i < items.length; i++) {
             const timeout = (this.getNodeParameter('timeout', i, operation === 'getGroups' ? 300 : 60) as number) * 1000;
-            const additionalFields = this.getNodeParameter('additionalFields', i, {}) as { binaryField?: { inputBinaryField?: string } };
+            const additionalFields = this.getNodeParameter('additionalFields', i, {}) as { binaryFields?: string };
+            const inputBinaryFields = additionalFields.binaryFields
+                ? additionalFields.binaryFields.split(',').map(field => field.trim()).filter(field => field)
+                : [];
+            
+            this.logger.debug(`Signal: Input binary fields for item ${i}: ${JSON.stringify(inputBinaryFields)}`);
+
             const params = {
                 recipient: this.getNodeParameter('recipient', i, '') as string,
                 message: this.getNodeParameter('message', i, '') as string,
@@ -339,7 +338,7 @@ export class Signal implements INodeType {
                 targetAuthor: this.getNodeParameter('targetAuthor', i, '') as string,
                 targetSentTimestamp: this.getNodeParameter('targetSentTimestamp', i, 0) as number,
                 attachmentId: this.getNodeParameter('attachmentId', i, '') as string,
-                inputBinaryField: additionalFields.binaryField?.inputBinaryField,
+                inputBinaryFields,
                 timeout,
                 apiUrl,
                 apiToken,
