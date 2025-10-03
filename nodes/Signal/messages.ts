@@ -66,7 +66,7 @@ export async function executeMessagesOperation(
                 } else {
                     const base64Attachments: string[] = [];
                     for (const inputBinaryField of inputBinaryFields) {
-                        if (!binary[inputBinaryField]) {
+                        if (!inputBinaryField || !binary[inputBinaryField]) {
                             this.logger.debug(`Signal: No binary data for field '${inputBinaryField}' in item ${itemIndex}, skipping`);
                             continue;
                         }
@@ -92,10 +92,11 @@ export async function executeMessagesOperation(
                         const mimeType = binaryData.mimeType || 'application/octet-stream';
                         const fileName = binaryData.fileName || `attachment_${itemIndex}_${inputBinaryField}`;
                         
-                        // Use plain base64 string as per documentation
-                        base64Attachments.push(base64Data);
+                        // Use data URI format with MIME type and filename (without encoding)
+                        const base64Attachment = `data:${mimeType};filename=${fileName};base64,${base64Data}`;
+                        base64Attachments.push(base64Attachment);
                         this.logger.debug(`Signal: Added base64 attachment for item ${itemIndex}, field '${inputBinaryField}': ${fileName}, MIME: ${mimeType}, Size: ${binaryBuffer.length} bytes`);
-                        this.logger.debug(`Signal: Attachment base64 length: ${base64Data.length} characters`);
+                        this.logger.debug(`Signal: Attachment format: ${base64Attachment.substring(0, 100)}...`);
                     }
 
                     if (base64Attachments.length > 0) {
