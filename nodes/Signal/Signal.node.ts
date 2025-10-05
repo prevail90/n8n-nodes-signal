@@ -9,6 +9,7 @@ import { executeMessagesOperation } from './messages';
 import { executeGroupsOperation } from './groups';
 import { executeContactsOperation } from './contacts';
 import { executeAttachmentsOperation } from './attachments';
+import { executeSearchOperation } from './search';
 
 export class Signal implements INodeType {
     description: INodeTypeDescription = {
@@ -109,6 +110,12 @@ export class Signal implements INodeType {
                         description: 'Update a Signal group’s name or members',
                         action: 'Update a group',
                     },
+									 {
+										 name: 'Search: Registered Number',
+										 value: 'searchnumber',
+										 description: 'Check if phone number is registered with the Signal',
+										 action: 'Search Number',
+									 },
                 ],
             },
             {
